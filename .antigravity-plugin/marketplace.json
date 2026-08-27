@@ -1,27 +1,27 @@
 {
   "name": "agy-hud",
   "owner": {
-    "name": "Jarrod Watts",
-    "email": "jarrodwattsyt@gmail.com"
+    "name": "lllopic"
   },
   "metadata": {
-    "description": "Real-time statusline HUD for Antigravity CLI - context health, tool activity, agent tracking, and todo progress",
-    "version": "0.1.0"
+    "description": "Native real-time HUD for Antigravity CLI — context, quota, agent state, tools, subagents, and Plan progress",
+    "version": "0.2.0"
   },
   "plugins": [
     {
       "name": "agy-hud",
       "source": "./",
-      "description": "Real-time statusline showing context usage, active tools, running agents, and todo progress. Always visible below your input, zero config required.",
+      "description": "Antigravity-native statusline with context, quota remaining, reset countdown, agent state, tools, subagents, and Plan progress.",
       "category": "monitoring",
       "tags": [
         "hud",
         "statusline",
         "monitoring",
         "context",
+        "quota",
         "tools",
         "agents",
-        "todos",
+        "plan",
         "antigravity-cli"
       ]
     }

@@ -1,0 +1,68 @@
+{
+  "cwd": "/home/user/my-project",
+  "session_id": "12345678-abcd-ef01-2345-6789abcdef01",
+  "conversation_id": "12345678-abcd-ef01-2345-6789abcdef01",
+  "transcript_path": "/home/user/.gemini/antigravity-cli/brain/12345678-abcd-ef01-2345-6789abcdef01/.system_generated/logs/transcript.jsonl",
+  "model": {
+    "id": "gemini-3.5-pro-high",
+    "display_name": "Gemini 3.5 Pro (High)"
+  },
+  "workspace": {
+    "current_dir": "/home/user/my-project",
+    "project_dir": "/home/user/my-project"
+  },
+  "version": "1.1.22",
+  "context_window": {
+    "total_input_tokens": 88244,
+    "total_output_tokens": 61074,
+    "context_window_size": 1048576,
+    "used_percentage": 14.24,
+    "remaining_percentage": 85.76,
+    "current_usage": {
+      "input_tokens": 63382,
+      "output_tokens": 346,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 20857
+    }
+  },
+  "exceeds_200k_tokens": false,
+  "product": "antigravity",
+  "quota": {
+    "gemini-weekly": {
+      "remaining_fraction": 0.9378,
+      "reset_time": "2026-07-06T07:50:32Z",
+      "reset_in_seconds": 560580
+    }
+  },
+  "cost": {
+    "total_cost_usd": 1.234567
+  },
+  "agent_state": "idle",
+  "vcs": {
+    "type": "git",
+    "branch": "main",
+    "client": "git",
+    "dirty": false
+  },
+  "sandbox": {
+    "enabled": false,
+    "allow_network": true
+  },
+  "artifact_count": 2,
+  "plan_tier": "Pro",
+  "email": "developer@example.com",
+  "pending_input_count": 0,
+  "tool_confirmation_pending": false,
+  "task_count": 1,
+  "subagents": [
+    { "status": "working" }
+  ],
+  "terminal_width": 111,
+  "execution_mode": "planning",
+  "vim": {
+    "mode": "NORMAL"
+  },
+  "future_field": {
+    "safe_to_ignore": true
+  }
+}

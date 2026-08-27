@@ -85,9 +85,11 @@ src/
 
 ## Plugin Configuration
 
-The plugin manifest is in `.antigravity-plugin/plugin.json` (metadata only - name, description, version, author).
+The native Antigravity manifest is the root `plugin.json`; `.antigravity-plugin/`
+is retained only for legacy marketplace compatibility.
 
-**StatusLine configuration** must be added to the user's settings via `/agy-hud:setup`.
+**StatusLine configuration** is installed by the native `/agy-hud-setup` skill,
+which runs `scripts/install-statusline.mjs` and writes a verified stable wrapper.
 
 ## Dependencies
 

@@ -30,6 +30,10 @@ export function renderUsageLine(
 
   const usageLabel = progressLabel("label.usage", colors, alignLabels);
 
+  if (ctx.usageData.quotaWindows?.length) {
+    return renderNativeQuota(ctx, alignLabels);
+  }
+
   if (ctx.usageData.balanceLabel) {
     return `${usageLabel} ${ctx.usageData.balanceLabel}`;
   }
@@ -133,6 +137,44 @@ export function renderUsageLine(
   }
 
   return `${usageLabel} ${fiveHourPart}`;
+}
+
+function renderNativeQuota(ctx: RenderContext, alignLabels: boolean): string | null {
+  const windows = ctx.usageData?.quotaWindows;
+  if (!windows?.length) return null;
+  const colors = ctx.config?.colors;
+  const display = ctx.config?.display;
+  const timeFormat: TimeFormatMode = display?.timeFormat ?? 'relative';
+  const showResetLabel = display?.showResetLabel ?? true;
+  const quotaLabel = progressLabel('label.quota', colors, alignLabels);
+  const barWidth = getAdaptiveBarWidth();
+
+  const rendered = windows.slice(0, 2).map((window) => {
+    const remaining = Math.min(100, Math.max(0, window.remainingPercent));
+    const used = 100 - remaining;
+    const reset = formatResetTime(window.resetAt, timeFormat);
+    const resetKey = timeFormat === 'absolute' ? 'format.resets' : 'format.resetsIn';
+    const windowLabel = windows.length > 1
+      ? `${label(humanizeQuotaId(window.id), colors)} `
+      : '';
+    const bar = display?.usageBarEnabled === false ? '' : `${quotaBar(used, barWidth, colors)} `;
+    const remainingText = `${t('format.remaining')} ${formatPercent(remaining)}%`;
+    const coloredRemaining = `${getQuotaColor(used, colors)}${remainingText}${RESET}`;
+    const resetText = reset
+      ? ` ${label(`(${showResetLabel ? `${t(resetKey)} ` : ''}${reset})`, colors)}`
+      : '';
+    return `${windowLabel}${bar}${coloredRemaining}${resetText}`;
+  });
+
+  return `${quotaLabel} ${rendered.join(' | ')}`;
+}
+
+function formatPercent(value: number): string {
+  return value.toFixed(1).replace(/\.0$/, '');
+}
+
+function humanizeQuotaId(value: string): string {
+  return value.replace(/[-_]+/g, ' ');
 }
 
 function formatCompactWindowPart(

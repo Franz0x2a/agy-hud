@@ -2,9 +2,8 @@
 node_modules/
 
 # Build artifacts
-# dist/ is gitignored but exists on main - CI builds and commits it after each merge.
-# See .github/workflows/build-dist.yml
-dist/
+# dist/ is intentionally tracked because Antigravity installs this repository
+# directly and the statusline runs dist/index.js without a post-install build.
 *.tsbuildinfo
 
 # Logs

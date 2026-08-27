@@ -1,5 +1,4 @@
 import * as path from 'node:path';
-import * as fs from 'node:fs';
 
 function expandHomeDirPrefix(inputPath: string, homeDir: string): string {
   if (inputPath === '~') {
@@ -11,45 +10,35 @@ function expandHomeDirPrefix(inputPath: string, homeDir: string): string {
   return inputPath;
 }
 
-export function getClaudeConfigDir(homeDir: string): string {
+export function getAntigravityConfigDir(homeDir: string): string {
   const envConfigDir = (process.env.ANTIGRAVITY_CONFIG_DIR || process.env.CLAUDE_CONFIG_DIR)?.trim();
   if (envConfigDir) {
     return path.resolve(expandHomeDirPrefix(envConfigDir, homeDir));
   }
 
-  // If ~/.gemini/antigravity-cli exists, we use it!
-  const antigravityPath = path.join(homeDir, '.gemini', 'antigravity-cli');
-  if (fs.existsSync(antigravityPath)) {
-    return antigravityPath;
-  }
-
-  // Otherwise, default/fallback to ~/.claude for backward compatibility with Claude Code & legacy test suites
-  return path.join(homeDir, '.claude');
+  return path.join(homeDir, '.gemini', 'antigravity-cli');
 }
 
-export function getClaudeConfigJsonPath(homeDir: string): string {
-  return `${getClaudeConfigDir(homeDir)}.json`;
+export function getAntigravitySettingsPath(homeDir: string): string {
+  return path.join(getAntigravityConfigDir(homeDir), 'settings.json');
 }
 
 export function getHudPluginDir(homeDir: string): string {
+  return path.join(getAntigravityConfigDir(homeDir), 'plugins', 'agy-hud');
+}
+
+/** Legacy Claude config discovery retained only for migrated config counters. */
+export function getClaudeConfigDir(homeDir: string): string {
+  const envConfigDir = process.env.CLAUDE_CONFIG_DIR?.trim();
+  return envConfigDir
+    ? path.resolve(expandHomeDirPrefix(envConfigDir, homeDir))
+    : path.join(homeDir, '.claude');
+}
+
+/** Legacy Claude sidecar path retained only for migrated config counters. */
+export function getClaudeConfigJsonPath(homeDir: string): string {
   const configDir = getClaudeConfigDir(homeDir);
-  
-  // Decide whether to use 'agy-hud' or 'claude-hud'
-  let pluginName = 'agy-hud';
-  
-  if (process.env.ANTIGRAVITY_CONFIG_DIR) {
-    pluginName = 'agy-hud';
-  } else if (process.env.CLAUDE_CONFIG_DIR) {
-    pluginName = 'claude-hud';
-  } else {
-    // Neither env var is set. Check if ~/.gemini/antigravity-cli exists
-    const antigravityPath = path.join(homeDir, '.gemini', 'antigravity-cli');
-    if (fs.existsSync(antigravityPath)) {
-      pluginName = 'agy-hud';
-    } else {
-      pluginName = 'claude-hud';
-    }
-  }
-  
-  return path.join(configDir, 'plugins', pluginName);
+  return process.env.CLAUDE_CONFIG_DIR?.trim()
+    ? `${configDir}.json`
+    : path.join(homeDir, '.claude.json');
 }

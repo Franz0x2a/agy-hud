@@ -26,6 +26,7 @@ export interface FileStats {
 export interface GitStatus {
   branch: string;
   isDirty: boolean;
+  vcsType?: 'git' | 'jj' | 'hg';
   ahead: number;
   behind: number;
   fileStats?: FileStats;

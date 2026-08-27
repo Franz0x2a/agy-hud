@@ -77,7 +77,7 @@ function makeCounts(overrides = {}) {
 
 async function createTempConfigDir(config = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), "claude-hud-index-test-"));
-  const pluginDir = path.join(dir, "plugins", "claude-hud");
+  const pluginDir = path.join(dir, "plugins", "agy-hud");
   await mkdir(pluginDir, { recursive: true });
   await writeFile(
     path.join(pluginDir, "config.json"),
@@ -190,7 +190,7 @@ test("main executes the happy path", async () => {
       readStdin: async () => makeStdin(),
       parseTranscript: async () => makeTranscript({ sessionStart: new Date(0) }),
       countConfigs: async () => makeCounts({ outputStyle: "tech-leader" }),
-      loadConfig: async () => makeConfig(),
+      loadConfig: async () => makeConfig({ display: { showOutputStyle: true } }),
       getGitStatus: async () => null,
       render: (ctx) => {
         renderedContext = ctx;
@@ -261,6 +261,99 @@ test("main includes git status in render context", async () => {
   });
 
   assert.equal(renderedContext?.gitStatus?.branch, "feature/test");
+});
+
+test("main prefers native Antigravity VCS without spawning git for Essential fields", async () => {
+  let renderedContext;
+  let gitCalls = 0;
+
+  await main({
+    readStdin: async () => makeStdin({
+      vcs: { type: "git", branch: "native-main", dirty: true },
+    }),
+    parseTranscript: async () => makeTranscript(),
+    parseArtifactProgress: async () => [],
+    countConfigs: async () => makeCounts(),
+    loadConfig: async () => makeConfig(),
+    getGitStatus: async () => {
+      gitCalls += 1;
+      return null;
+    },
+    render: (ctx) => {
+      renderedContext = ctx;
+    },
+  });
+
+  assert.equal(gitCalls, 0);
+  assert.equal(renderedContext?.gitStatus?.branch, "native-main");
+  assert.equal(renderedContext?.gitStatus?.isDirty, true);
+});
+
+test("main renders native jj and hg VCS without spawning git", async () => {
+  for (const vcsType of ["jj", "hg"]) {
+    let renderedContext;
+    let gitCalls = 0;
+    await main({
+      readStdin: async () => makeStdin({ vcs: { type: vcsType, branch: "native-bookmark", dirty: true } }),
+      parseTranscript: async () => makeTranscript(),
+      parseArtifactProgress: async () => [],
+      countConfigs: async () => makeCounts(),
+      loadConfig: async () => makeConfig(),
+      getGitStatus: async () => {
+        gitCalls += 1;
+        return null;
+      },
+      render: (ctx) => { renderedContext = ctx; },
+    });
+    assert.equal(gitCalls, 0);
+    assert.equal(renderedContext?.gitStatus?.vcsType, vcsType);
+    assert.equal(renderedContext?.gitStatus?.branch, "native-bookmark");
+  }
+});
+
+test("main skips transcript, artifact, and config-count I/O when the selected surfaces are disabled", async () => {
+  let transcriptCalls = 0;
+  let artifactCalls = 0;
+  let countCalls = 0;
+  const minimalDisplay = Object.fromEntries(
+    Object.keys(DEFAULT_CONFIG.display).map(key => [key, false]),
+  );
+  minimalDisplay.showModel = true;
+  minimalDisplay.showProject = true;
+  minimalDisplay.showContextBar = true;
+
+  await main({
+    readStdin: async () => makeStdin(),
+    loadConfig: async () => makeConfig({ display: minimalDisplay }),
+    parseTranscript: async () => { transcriptCalls += 1; return makeTranscript(); },
+    parseArtifactProgress: async () => { artifactCalls += 1; return []; },
+    countConfigs: async () => { countCalls += 1; return makeCounts(); },
+    getGitStatus: async () => null,
+    render: () => {},
+  });
+
+  assert.equal(transcriptCalls, 0);
+  assert.equal(artifactCalls, 0);
+  assert.equal(countCalls, 0);
+});
+
+test("main overlays task.md artifact progress onto transcript activity", async () => {
+  let renderedContext;
+  const artifactTodos = [{ content: "Render native quota", status: "in_progress" }];
+
+  await main({
+    readStdin: async () => makeStdin({ transcript_path: "/brain/conversation/.system_generated/logs/transcript.jsonl" }),
+    parseTranscript: async () => makeTranscript({ todos: [{ content: "legacy", status: "pending" }] }),
+    parseArtifactProgress: async () => artifactTodos,
+    countConfigs: async () => makeCounts(),
+    loadConfig: async () => makeConfig(),
+    getGitStatus: async () => null,
+    render: (ctx) => {
+      renderedContext = ctx;
+    },
+  });
+
+  assert.deepEqual(renderedContext?.transcript.todos, artifactTodos);
 });
 
 test("main includes usageData from stdin when available", async () => {

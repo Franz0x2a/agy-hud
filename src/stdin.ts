@@ -1,6 +1,8 @@
 import type { StdinData, UsageData } from './types.js';
 import type { ModelFormatMode } from './config.js';
 import { AUTOCOMPACT_BUFFER_PERCENT } from './constants.js';
+import { normalizeStatusPayload } from './antigravity/status.js';
+import { getQuotaWindows } from './antigravity/status.js';
 
 type StdinStream = Pick<NodeJS.ReadStream, 'setEncoding' | 'on' | 'off' | 'pause'> & {
   isTTY?: boolean;
@@ -72,7 +74,7 @@ export async function readStdin(
       }
 
       try {
-        return JSON.parse(trimmed) as StdinData;
+        return normalizeStatusPayload(JSON.parse(trimmed));
       } catch {
         return undefined;
       }
@@ -140,20 +142,11 @@ export function getTotalTokens(stdin: StdinData): number {
   );
 }
 
-/**
- * Get native percentage from Claude Code v2.1.6+ if available.
- * Returns null if not available or invalid, triggering fallback to manual calculation.
- *
- * A value of 0 is treated as "not yet populated": on a fresh session Claude Code
- * may emit used_percentage=0 before the first API response arrives, while
- * current_usage already contains the real initial-context tokens (system prompt,
- * tools, memory files, etc.).  Falling through to the token-based calculation
- * ensures those tokens are reflected in the context bar from the very first tick.
- */
+/** Return Antigravity's native percentage when present, preserving its precision. */
 function getNativePercent(stdin: StdinData): number | null {
   const nativePercent = stdin.context_window?.used_percentage;
-  if (typeof nativePercent === 'number' && !Number.isNaN(nativePercent) && nativePercent > 0) {
-    return Math.min(100, Math.max(0, Math.round(nativePercent)));
+  if (typeof nativePercent === 'number' && Number.isFinite(nativePercent)) {
+    return Math.min(100, Math.max(0, nativePercent));
   }
   return null;
 }
@@ -289,6 +282,24 @@ function parseRateLimitResetAt(value: number | null | undefined): Date | null {
 }
 
 export function getUsageFromStdin(stdin: StdinData): UsageData | null {
+  const quotaWindows = getQuotaWindows(stdin).map((window) => ({
+    ...window,
+    resetAt: window.resetAt ?? (
+      window.resetInSeconds !== null
+        ? new Date(Date.now() + window.resetInSeconds * 1000)
+        : null
+    ),
+  }));
+  if (quotaWindows.length > 0) {
+    return {
+      fiveHour: null,
+      sevenDay: null,
+      fiveHourResetAt: null,
+      sevenDayResetAt: null,
+      quotaWindows,
+    };
+  }
+
   const rateLimits = stdin.rate_limits;
   if (!rateLimits) {
     return null;

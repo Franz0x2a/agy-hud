@@ -4,6 +4,7 @@ export const en: Messages = {
   // Labels
   "label.context": "Context",
   "label.usage": "Usage",
+  "label.quota": "Quota",
   "label.weekly": "Weekly",
   "label.approxRam": "Approx RAM",
   "label.promptCache": "Cache",
@@ -31,6 +32,7 @@ export const en: Messages = {
   "format.tokPerSec": "tok/s",
   "format.justNow": "just now",
   "format.ago": "ago",
+  "format.remaining": "Remaining",
 
   // Init
   "init.initializing": "[agy-hud] Initializing...",

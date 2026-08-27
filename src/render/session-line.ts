@@ -10,6 +10,7 @@ import { renderSessionTimeLine } from './lines/session-time.js';
 import { t } from '../i18n/index.js';
 import type { TimeFormatMode, UsageValueMode } from '../config.js';
 import { formatResetTime } from './format-reset-time.js';
+import { renderUsageLine } from './lines/usage.js';
 
 const DEBUG = process.env.DEBUG?.includes('claude-hud') || process.env.DEBUG === '*';
 
@@ -65,6 +66,19 @@ export function renderSessionLine(ctx: RenderContext): string {
     parts.push(contextValueDisplay);
   }
 
+  const nativeState: string[] = [];
+  if (display?.showAgentState !== false && ctx.stdin.agent_state) {
+    nativeState.push(ctx.stdin.agent_state.toLowerCase() === 'idle'
+      ? 'READY'
+      : ctx.stdin.agent_state.toUpperCase());
+  }
+  if (display?.showExecutionMode !== false && ctx.stdin.execution_mode) {
+    nativeState.push(ctx.stdin.execution_mode.toLowerCase());
+  }
+  if (nativeState.length > 0) {
+    parts.push(label(nativeState.join(' · '), colors));
+  }
+
   // Project path + git status (SECOND)
   let projectPart: string | null = null;
   if (display?.showProject !== false && ctx.stdin.cwd) {
@@ -113,7 +127,8 @@ export function renderSessionLine(ctx: RenderContext): string {
       }
     }
 
-    gitPart = `${gitColor('git:(', colors)}${gitBranchColor(gitParts.join(''), colors)}${gitColor(')', colors)}`;
+    const vcsLabel = ctx.gitStatus.vcsType ?? 'git';
+    gitPart = `${gitColor(`${vcsLabel}:(`, colors)}${gitBranchColor(gitParts.join(''), colors)}${gitColor(')', colors)}`;
   }
 
   if (projectPart && gitPart) {
@@ -134,7 +149,9 @@ export function renderSessionLine(ctx: RenderContext): string {
     parts.push(label(ctx.transcript.sessionName, colors));
   }
 
-  if (display?.showClaudeCodeVersion && ctx.claudeCodeVersion) {
+  if (display?.showAntigravityVersion && ctx.claudeCodeVersion) {
+    parts.push(label(`agy v${ctx.claudeCodeVersion}`, colors));
+  } else if (display?.showClaudeCodeVersion && ctx.claudeCodeVersion) {
     parts.push(label(`CC v${ctx.claudeCodeVersion}`, colors));
   }
 
@@ -163,7 +180,12 @@ export function renderSessionLine(ctx: RenderContext): string {
   }
 
   // Usage limits display (shown when enabled in config, respects usageThreshold)
-  if (display?.showUsage !== false && ctx.usageData && !shouldHideUsage(ctx.stdin)) {
+  if (display?.showUsage !== false && ctx.usageData?.quotaWindows?.length && !shouldHideUsage(ctx.stdin)) {
+    const nativeQuotaLine = renderUsageLine(ctx);
+    if (nativeQuotaLine) parts.push(nativeQuotaLine);
+  }
+
+  if (display?.showUsage !== false && ctx.usageData && !ctx.usageData.quotaWindows?.length && !shouldHideUsage(ctx.stdin)) {
     const usageCompact = display?.usageCompact ?? false;
     const showResetLabel = display?.showResetLabel ?? true;
     const usageValueMode = display?.usageValue ?? 'percent';

@@ -2,6 +2,7 @@ export type MessageKey =
   // Labels
   | "label.context"
   | "label.usage"
+  | "label.quota"
   | "label.weekly"
   | "label.approxRam"
   | "label.promptCache"
@@ -27,6 +28,7 @@ export type MessageKey =
   | "format.tokPerSec"
   | "format.justNow"
   | "format.ago"
+  | "format.remaining"
   // Init
   | "init.initializing"
   | "init.macosNote";

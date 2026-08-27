@@ -1,250 +1,227 @@
 # agy-hud
 
-A real-time statusline HUD for Antigravity CLI that shows what's happening — context usage, active tools, running agents, and todo progress. Always visible below your input.
+**See what Antigravity is doing before you have to ask.**
 
-[![License](https://img.shields.io/github/license/lllopic/agy-hud?v=2)](LICENSE)
+agy-hud is an Antigravity-native statusline that keeps context pressure, quota
+remaining, reset time, agent state, tools, subagents, and Plan progress visible
+under your prompt—in any terminal, with no separate window.
+
+[![Version](https://img.shields.io/badge/version-0.2.0-7c3aed)](https://github.com/lllopic/agy-hud/releases)
+[![Antigravity CLI](https://img.shields.io/badge/Antigravity_CLI-1.0.2%E2%80%931.1.22%2B-4285f4)](https://antigravity.google/docs/cli/statusline/)
+[![Tests](https://img.shields.io/badge/tests-616_passing-22c55e)](#development)
+[![License](https://img.shields.io/github/license/lllopic/agy-hud)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/lllopic/agy-hud)](https://github.com/lllopic/agy-hud/stargazers)
 
-> 🌐 English | [中文文档](README.zh.md)
+> English · [简体中文](README.zh.md)
+
+```text
+[Gemini 3.5 Pro] │ READY · planning │ agy-hud git:(main*)
+Context █░░░░░░░░░ 14.2% (84k/1.0M) │ Quota █░░░░░░░░░ Remaining 93.8% (resets in 6d 11h)
+◐ grep_search: normalizeStatusPayload │ ✓ run_command ×2
+▸ Render native quota (2/5)
+```
+
+## Why agy-hud
+
+- **Native context truth** — prefers Antigravity's own decimal percentage and
+  reported window size instead of guessing.
+- **Quota at a glance** — shows the wording that matters: `Remaining 93.8%`,
+  plus the reset countdown.
+- **Live work, not stale Claude logs** — understands Antigravity planner/action
+  events, tool errors, `invoke_subagent`, Skills, and MCP calls.
+- **Real Plan progress** — safely reads the active conversation's `task.md`
+  checkboxes.
+- **Modern CLI state** — supports agent state, execution mode, git/jj/hg VCS, sandbox,
+  artifacts, task/input counts, confirmations, Vim mode, plan tier, account,
+  CLI version, native cost, and subagents.
+- **Fast and local** — no runtime dependencies, network calls, analytics, or
+  telemetry. Input and artifact reads are bounded; transcript reads are cached
+  and limited to the recent 2 MiB tail. Long sessions keep their real start
+  time and hide cumulative tokens when a truthful full-session total is not available.
 
 ## Install
 
-Inside an Antigravity CLI instance, run the following commands:
+Requirements: Antigravity CLI and Node.js 18 or newer.
 
-**Step 1: Add the marketplace**
-```
-/plugin marketplace add lllopic/agy-hud
-```
+Install the native plugin from your shell:
 
-**Step 2: Install the plugin**
-
-<details>
-<summary><strong>⚠️ Linux users: Click here first</strong></summary>
-
-On Linux, `/tmp` is often a separate filesystem (tmpfs), which causes plugin installation to fail with:
-```
-EXDEV: cross-device link not permitted
-```
-
-**Fix**: Set TMPDIR before installing:
 ```bash
-mkdir -p ~/.cache/tmp && TMPDIR=~/.cache/tmp agy
+agy plugin install https://github.com/lllopic/agy-hud
 ```
 
-Then run the install command below in that session.
+Then open Antigravity CLI and run:
 
-</details>
-
-```
-/plugin install agy-hud
+```text
+/agy-hud-setup
 ```
 
-After that, reload plugins:
+Restart Antigravity CLI after setup. The installer writes and verifies a stable
+wrapper with resolved absolute paths, so shell variable expansion and versioned
+cache paths cannot break the HUD after an upgrade.
 
-```
-/reload-plugins
-```
+To adjust the profile, language, or layout later:
 
-
-**Step 3: Configure the statusline**
-```
-/agy-hud:setup
+```text
+/agy-hud-configure
 ```
 
-<details>
-<summary><strong>⚠️ Windows users: Click here if setup says no JavaScript runtime was found</strong></summary>
+## Profiles
 
-On Windows, Node.js LTS is the supported runtime for agy-hud setup. If setup says no JavaScript runtime was found, install Node.js for your shell first:
-```powershell
-winget install OpenJS.NodeJS.LTS
-```
-Then restart your shell and run `/agy-hud:setup` again.
+### Essential — the default
 
-</details>
+Essential is intentionally high-signal. With no config file it enables:
 
-Done! Restart Antigravity CLI to load the new statusLine config, then the HUD will appear.
+- model, agent state, execution mode
+- project and native branch/dirty state
+- context percentage and token count
+- quota remaining and reset countdown
+- tools, subagents, and Plan progress when active
 
----
+### Full — every current native field
 
-## What is agy-hud?
+Choose **Full** in `/agy-hud-configure`, or merge this into
+`~/.gemini/antigravity-cli/plugins/agy-hud/config.json`:
 
-agy-hud gives you better insights into what's happening in your Antigravity CLI session.
-
-| What You See | Why It Matters |
-|--------------|----------------|
-| **Project path** | Know which project you're in (configurable 1-3 directory levels) |
-| **Context health** | Know exactly how full your context window is before it's too late |
-| **Tool activity** | Watch the agent read, edit, and search files as it happens |
-| **Agent tracking** | See which subagents are running and what they're doing |
-| **Todo progress** | Track task completion in real-time |
-
-## What You See
-
-### Default (2 lines)
-```
-[Gemini 1.5 Pro] │ my-project git:(main*)
-Context █████░░░░░ 45%
-```
-- **Line 1** — Model name, project path, git branch
-- **Line 2** — Context bar (green → yellow → red)
-
-### Optional lines (enable via `/agy-hud:configure`)
-```
-◐ Edit: auth.ts | ✓ Read ×3 | ✓ Grep ×2        ← Tools activity
-◐ explore [haiku]: Finding auth code (2m 15s)    ← Agent status
-▸ Fix authentication bug (2/5)                   ← Todo progress
+```json
+{
+  "display": {
+    "showCost": true,
+    "showDuration": true,
+    "showSessionTokens": true,
+    "showSandbox": true,
+    "showArtifacts": true,
+    "showTaskCount": true,
+    "showPendingInput": true,
+    "showToolConfirmation": true,
+    "showVimMode": true,
+    "showPlanTier": true,
+    "showAccount": true,
+    "showAntigravityVersion": true,
+    "showSkills": true,
+    "showMcpActivity": true
+  }
+}
 ```
 
----
+`showAccount` is off by default because it prints your account email—leave it
+off while streaming or screen sharing.
 
-## How It Works
+### Minimal
 
-agy-hud uses Antigravity CLI's native **statusline API** — no separate window, no tmux required, works in any terminal.
+Minimal keeps only model, project/VCS, and context. It also skips transcript,
+artifact, and legacy config-count reads when those surfaces are disabled.
 
-```
-Antigravity CLI → stdin JSON → agy-hud → stdout → displayed in your terminal
-              ↘ transcript JSONL (tools, agents, todos)
-```
+## Native field coverage
 
-**Key features:**
-- Native token data from Antigravity CLI (not estimated)
-- Scales with reported context window size, including newer 1M-context sessions
-- Parses the transcript for tool/agent activity
-- Updates every ~300ms
+| Antigravity data | Essential | Full | Source |
+|---|:---:|:---:|---|
+| Model, workspace, VCS | ✓ | ✓ | Native status payload |
+| Context size, tokens, decimal usage | ✓ | ✓ | Native status payload |
+| Quota remaining and reset | ✓ | ✓ | Native status payload |
+| Agent state and execution mode | ✓ | ✓ | Native status payload |
+| Tools, errors, subagents | When active | ✓ | Transcript + native count |
+| Plan progress | When active | ✓ | Conversation `task.md` |
+| Native cost | — | ✓ | Native status payload |
+| Sandbox and network access | — | ✓ | Native status payload |
+| Artifact, task, pending-input counts | — | ✓ | Native status payload |
+| Tool confirmation and Vim mode | — | ✓ | Native status payload |
+| Plan tier, account, CLI version | — | ✓ | Native status payload |
+| Skills and MCP activity | — | ✓ | Transcript events |
 
----
+Unknown future fields are ignored safely. Optional fields appear only when the
+running Antigravity version supplies them, so the same build works across older
+and newer releases without brittle version checks.
 
 ## Configuration
 
-Customize your HUD anytime:
+The guided command is the easiest path:
 
+```text
+/agy-hud-configure
 ```
-/agy-hud:configure
+
+Manual configuration lives at:
+
+```text
+~/.gemini/antigravity-cli/plugins/agy-hud/config.json
 ```
 
-The guided flow handles layout, language, and common display toggles. Advanced overrides such as custom colors and thresholds are preserved there, but you set them by editing the config file directly:
+Useful options:
 
-- **First time setup**: Choose a preset (Full/Essential/Minimal), pick a label language, then fine-tune individual elements
-- **Customize anytime**: Toggle items on/off, adjust git display style, switch layouts, or change label language
-- **Preview before saving**: See exactly how your HUD will look before committing changes
+| Option | Default | Purpose |
+|---|---:|---|
+| `language` | `en` | `en`, `zh`, or `zh-Hans` |
+| `lineLayout` | `expanded` | `expanded` or `compact` |
+| `display.contextValue` | `both` | `percent`, `tokens`, `remaining`, or `both` |
+| `display.usageValue` | `remaining` | Quota/rate-limit value semantics |
+| `display.showTools` | `true` | Recent and running tools |
+| `display.showAgents` | `true` | Running/recent subagents |
+| `display.showTodos` | `true` | Current Plan task and progress |
+| `display.timeFormat` | `relative` | `relative`, `absolute`, or `both` reset time |
+| `gitStatus.showAheadBehind` | `false` | Adds local Git lookup for remote divergence |
+| `gitStatus.showFileStats` | `false` | Adds local Git lookup for changed files |
+| `maxWidth` / `forceMaxWidth` | `null` / `false` | Width fallback or hard override |
 
-### Presets
+The complete typed option list and defaults are in
+[`src/config.ts`](src/config.ts). Existing `showClaudeCodeVersion` and
+`CLAUDE_CONFIG_DIR` settings remain accepted as migration aliases, including a
+fallback to the old `plugins/claude-hud/config.json` location.
 
-| Preset | What's Shown |
-|--------|--------------|
-| **Full** | Everything enabled — tools, agents, todos, git, context, duration |
-| **Essential** | Activity lines + git status, minimal info clutter |
-| **Minimal** | Core only — just model name and context bar |
+Antigravity also supports `statusLine.stack_with_default`. Set it to `true` in
+the CLI `settings.json` if you want agy-hud stacked with Antigravity's built-in
+statusline.
 
-After choosing a preset, you can turn individual elements on or off.
+## How it works
 
-### Manual Configuration
+```text
+Antigravity status JSON ─┐
+Transcript JSONL ────────┼─> normalize ─> RenderContext ─> terminal HUD
+Conversation task.md ────┘
+```
 
-Edit `~/.gemini/antigravity-cli/plugins/agy-hud/config.json` directly for advanced settings such as `colors.*`, `pathLevels`, `maxWidth`, threshold overrides, `display.timeFormat`, and `display.promptCacheTtlSeconds`. Running `/agy-hud:configure` preserves those manual settings while still letting you change `language`, layout, and the common guided toggles.
+The native status payload is authoritative for context, quota, VCS, cost, and
+runtime state. Transcript and artifact data only enrich live activity and Plan
+progress. Nothing is uploaded.
 
-Chinese HUD labels are available as an explicit opt-in. English stays the default unless you choose `中文` in `/agy-hud:configure` or set `language` in config. The short `zh` alias remains valid, and new guided config writes the canonical `zh-Hans` value.
+## Troubleshooting
 
-### Options
+**HUD does not appear**
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `language` | `en` \| `zh` \| `zh-Hans` | `en` | HUD label language. English is the default; set `zh` or `zh-Hans` to enable Simplified Chinese labels. |
-| `lineLayout` | string | `expanded` | Layout: `expanded` (multi-line) or `compact` (single line) |
-| `pathLevels` | 1-3 | 1 | Directory levels to show in project path |
-| `maxWidth` | number \| `null` | `null` | Optional fallback width used only when terminal width detection fails completely |
-| `forceMaxWidth` | boolean | false | Always use `maxWidth` when it is set, even if terminal width detection returns a smaller value |
-| `elementOrder` | string[] | `["project","context","usage","promptCache","memory","environment","tools","agents","todos","sessionTime"]` | Expanded-mode element order. Omit entries to hide them in expanded mode. Existing configs keep their explicit order until updated. |
-| `display.mergeGroups` | string[][] | `[["context","usage"]]` | Expanded-mode groups that should share a line when adjacent. Set `[]` to disable merged lines. |
-| `gitStatus.enabled` | boolean | true | Show git branch in HUD |
-| `gitStatus.showDirty` | boolean | true | Show `*` for uncommitted changes |
-| `gitStatus.showAheadBehind` | boolean | false | Show `↑N ↓N` for ahead/behind remote |
-| `gitStatus.pushWarningThreshold` | number | 0 | Color the ahead count with the warning color at or above this unpushed-commit count (`0` disables it) |
-| `gitStatus.pushCriticalThreshold` | number | 0 | Color the ahead count with the critical color at or above this unpushed-commit count (`0` disables it) |
-| `gitStatus.showFileStats` | boolean | false | Show file change counts `!M +A ✘D ?U` |
-| `gitStatus.branchOverflow` | `truncate` \| `wrap` | `truncate` | Keep current truncation behavior or let the git block wrap onto its own line boundary when possible |
-| `display.showModel` | boolean | true | Show model name `[Gemini 1.5 Pro]` |
-| `display.showAddedDirs` | boolean | true | Show extra workspace directories from `/add-dir` (e.g. `+sparkle +lib-foo`); empty array renders nothing. In both layouts at most 5 dirs render (overflow shown as `+N more`) and basenames are truncated to 24 chars with `…` |
-| `display.addedDirsLayout` | `inline` \| `line` | `inline` | `inline` puts dirs next to the project name with a `+name` prefix per dir; `line` renders them on a separate `Added dirs: name1, name2` line (no `+` prefix, comma-separated) |
-| `display.showContextBar` | boolean | true | Show visual context bar `████░░░░░░` |
-| `display.contextValue` | `percent` \| `tokens` \| `remaining` \| `both` | `percent` | Context display format (`45%`, `45k/200k`, `55%` remaining, or `45% (45k/200k)`) |
-| `display.showConfigCounts` | boolean | false | Show CLAUDE.md, rules, MCPs, hooks counts |
-| `display.showCost` | boolean | false | Show session cost when available |
-| `display.showOutputStyle` | boolean | false | Show the active output style from settings files |
-| `display.showDuration` | boolean | false | Show session duration `⏱️ 5m` |
-| `display.showSpeed` | boolean | false | Show output token speed `out: 42.1 tok/s` |
-| `display.showUsage` | boolean | false | Show rate limit usage metrics |
-| `display.showTokenBreakdown` | boolean | true | Show token details at high context (85%+) |
-| `display.showTools` | boolean | false | Show tools activity line |
-| `display.showAgents` | boolean | false | Show agents activity line |
-| `display.showTodos` | boolean | false | Show todos progress line |
-| `display.showSessionName` | boolean | false | Show session slug or custom title from `/rename` |
-| `display.showSessionStartDate` | boolean | false | Show the transcript session start timestamp |
-| `display.showLastResponseAt` | boolean | false | Show how long ago the last assistant response was written |
-| `display.showClaudeCodeVersion` | boolean | false | Show the installed CLI version |
-| `display.showMemoryUsage` | boolean | false | Show an approximate system RAM usage line in expanded layout |
-| `colors.context` | color value | `green` | Base color for the context bar and context percentage |
-| `colors.usage` | color value | `brightBlue` | Base color for usage bars and percentages below warning thresholds |
-| `colors.warning` | color value | `yellow` | Warning color for context thresholds and usage warning text |
-| `colors.usageWarning` | color value | `brightMagenta` | Warning color for usage bars and percentages near their threshold |
-| `colors.critical` | color value | `red` | Critical color for limit-reached states and critical thresholds |
-| `colors.model` | color value | `cyan` | Color for the model badge such as `[Gemini 1.5 Pro]` |
-| `colors.project` | color value | `yellow` | Color for the project path |
-| `colors.git` | color value | `magenta` | Color for git wrapper text such as `git:(` and `)` |
-| `colors.gitBranch` | color value | `cyan` | Color for the git branch and branch status text |
-| `colors.label` | color value | `dim` | Color for labels and secondary metadata such as `Context`, counts, and progress text |
-| `colors.custom` | color value | `208` | Color for the optional custom line |
-| `colors.barFilled` | string | `█` | Character used for the filled portion of progress bars |
-| `colors.barEmpty` | string | `░` | Character used for the empty portion of progress bars |
+1. Confirm `node --version` is 18+.
+2. Run `/agy-hud-setup` again.
+3. Check that `settings.json` points to the generated absolute
+   `agy-hud-statusline.sh` or `.cmd` wrapper.
+4. Fully restart Antigravity CLI.
 
-Supported color names: `dim`, `red`, `green`, `yellow`, `magenta`, `cyan`, `brightBlue`, `brightMagenta`. You can also use a 256-color number (`0-255`) or hex (`#rrggbb`).
+**Quota or a Full field is missing**
 
-### Troubleshooting
+agy-hud does not invent unavailable values. Update Antigravity CLI and verify
+that its current status payload exposes that field. Older releases continue to
+render the fields they support.
 
-**Config not applying?**
-- Check for JSON syntax errors: invalid JSON silently falls back to defaults
-- Ensure valid values: `pathLevels` must be 1, 2, or 3; `lineLayout` must be `expanded` or `compact`
-- Delete config and run `/agy-hud:configure` to regenerate
+**Old appearance remains after upgrading**
 
-**Git status missing?**
-- Verify you're in a git repository
-- Check `gitStatus.enabled` is not `false` in config
-
-**Tool/agent/todo lines missing?**
-- These are hidden by default — enable with `showTools`, `showAgents`, `showTodos` in config
-- They also only appear when there's activity to show
-
-**HUD not appearing after setup?**
-- Restart Antigravity CLI so it picks up the new statusLine config
-
----
-
-## Requirements
-
-- Antigravity CLI v0.1.0+
-- macOS/Linux: Node.js 18+ or Bun
-- Windows: Node.js 18+
-
----
+Your existing `config.json` intentionally overrides the new Essential defaults.
+Run `/agy-hud-configure` and select Essential, or move the config aside to test
+the new defaults.
 
 ## Development
 
 ```bash
-git clone https://github.com/lllopic/agy-hud
-cd agy-hud
-npm ci && npm run build
+npm install
 npm test
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+The test suite covers native 1.1.22-style payloads, older compatibility paths,
+transcript/activity matching, artifact isolation, terminal-width behavior,
+security sanitization, and English/Chinese rendering.
 
----
+## Credits
 
-## Attribution
+agy-hud began as an Antigravity adaptation of
+[claude-hud](https://github.com/jarrodwatts/claude-hud). Its mature rendering,
+configuration, and statusline ideas remain an important foundation; the 0.2.0
+line replaces the old Claude-oriented data path with Antigravity-native status,
+quota, transcript, and artifact support.
 
-`agy-hud` is a rebranded fork of the excellent [claude-hud](https://github.com/jarrodwatts/claude-hud) project by [Jarrod Watts](https://github.com/jarrodwatts), adapted for first-class compatibility with the Antigravity CLI. Both the original work and these modifications are licensed under the MIT License.
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE)
+MIT licensed. Contributions and issue reports are welcome.

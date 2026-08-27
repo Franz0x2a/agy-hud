@@ -412,6 +412,11 @@ function renderCompact(ctx: RenderContext): string[] {
     lines.push(sessionLine);
   }
 
+  const environmentLine = renderEnvironmentLine(ctx);
+  if (environmentLine) {
+    lines.push(environmentLine);
+  }
+
   return lines;
 }
 
@@ -507,10 +512,15 @@ export function render(ctx: RenderContext): void {
   const lineLayout = ctx.config?.lineLayout ?? 'expanded';
   const showSeparators = ctx.config?.showSeparators ?? false;
   const detectedWidth = getTerminalWidth({ preferEnv: true, fallback: UNKNOWN_TERMINAL_WIDTH });
+  const nativeWidth = typeof ctx.stdin.terminal_width === 'number'
+    && Number.isFinite(ctx.stdin.terminal_width)
+    && ctx.stdin.terminal_width > 0
+    ? Math.floor(ctx.stdin.terminal_width)
+    : UNKNOWN_TERMINAL_WIDTH;
   const configuredMaxWidth = ctx.config?.maxWidth ?? UNKNOWN_TERMINAL_WIDTH;
   const terminalWidth = ctx.config?.forceMaxWidth && configuredMaxWidth !== UNKNOWN_TERMINAL_WIDTH
     ? configuredMaxWidth
-    : (detectedWidth ?? configuredMaxWidth ?? UNKNOWN_TERMINAL_WIDTH);
+    : (nativeWidth ?? detectedWidth ?? configuredMaxWidth ?? UNKNOWN_TERMINAL_WIDTH);
 
   let lines: string[];
 

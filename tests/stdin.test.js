@@ -65,6 +65,25 @@ test('readStdin parses JSON split across multiple chunks', async () => {
   });
 });
 
+test('readStdin normalizes Antigravity fields before returning them', async () => {
+  const stream = createPipe();
+  const resultPromise = readStdin(stream, { firstByteTimeoutMs: 20, idleTimeoutMs: 10 });
+
+  stream.write(JSON.stringify({
+    cwd: '/tmp/project',
+    terminal_width: 120,
+    task_count: -1,
+    future_field: 'ignored',
+  }));
+
+  const result = await resultPromise;
+  assert.ok(result);
+  assert.equal(result.cwd, '/tmp/project');
+  assert.equal(result.terminal_width, 120);
+  assert.equal(result.task_count, undefined);
+  assert.equal('future_field' in result, false);
+});
+
 test('readStdin returns null when a non-TTY stream never produces data', async () => {
   const stream = createPipe();
   const result = await readStdin(stream, { firstByteTimeoutMs: 10, idleTimeoutMs: 5 });

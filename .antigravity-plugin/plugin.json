@@ -1,17 +1,17 @@
 {
   "name": "agy-hud",
-  "description": "Real-time statusline HUD for Antigravity CLI - context health, tool activity, agent tracking, and todo progress",
-  "version": "0.1.0",
+  "description": "Native real-time HUD for Antigravity CLI — context, quota, agent state, tools, subagents, and Plan progress",
+  "version": "0.2.0",
   "author": {
-    "name": "Jarrod Watts",
-    "url": "https://github.com/jarrodwatts"
+    "name": "lllopic",
+    "url": "https://github.com/lllopic"
   },
   "commands": [
-    "./commands/agy-setup.md",
-    "./commands/agy-configure.md"
+    "../commands/agy-setup.md",
+    "../commands/agy-configure.md"
   ],
-  "homepage": "https://github.com/jarrodwatts/claude-hud",
-  "repository": "https://github.com/jarrodwatts/claude-hud",
+  "homepage": "https://github.com/lllopic/agy-hud",
+  "repository": "https://github.com/lllopic/agy-hud",
   "license": "MIT",
-  "keywords": ["hud", "monitoring", "statusline", "context", "tools", "agents", "todos", "antigravity-cli"]
+  "keywords": ["hud", "monitoring", "statusline", "context", "quota", "tools", "agents", "plan", "antigravity-cli"]
 }

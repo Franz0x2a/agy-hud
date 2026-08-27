@@ -564,6 +564,27 @@ test('render treats COLUMNS env as a hard override over stdout width', () => {
   assert.ok(lines.length > 1, 'narrow env override should force wrapping');
 });
 
+test('render prefers the native Antigravity terminal width over subprocess detection', () => {
+  const ctx = baseContext();
+  ctx.stdin.cwd = '/tmp/very-long-project-name-for-native-width';
+  ctx.stdin.terminal_width = 12;
+  const originalEnvColumns = process.env.COLUMNS;
+  process.env.COLUMNS = '120';
+
+  let lines = [];
+  try {
+    withTerminal(100, () => {
+      lines = captureRender(ctx);
+    });
+  } finally {
+    if (originalEnvColumns === undefined) delete process.env.COLUMNS;
+    else process.env.COLUMNS = originalEnvColumns;
+  }
+
+  assert.ok(lines.every(line => displayWidth(line) <= 12), 'native terminal_width should be honored');
+  assert.ok(lines.length > 1, 'native width should force wrapping');
+});
+
 test('render does not split model/provider separator inside brackets', () => {
   process.env.CLAUDE_CODE_USE_BEDROCK = '1';
   try {

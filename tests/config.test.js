@@ -134,6 +134,28 @@ test('mergeConfig preserves explicit showClaudeCodeVersion=true', () => {
   assert.equal(config.display.showClaudeCodeVersion, true);
 });
 
+test('mergeConfig applies Essential native defaults and preserves Full runtime toggles', () => {
+  const essential = mergeConfig({});
+  assert.equal(essential.display.contextValue, 'both');
+  assert.equal(essential.display.usageValue, 'remaining');
+  assert.equal(essential.display.showAgentState, true);
+  assert.equal(essential.display.showExecutionMode, true);
+  assert.equal(essential.display.showTools, true);
+  assert.equal(essential.display.showAgents, true);
+  assert.equal(essential.display.showTodos, true);
+  assert.equal(essential.display.showAccount, false);
+
+  const fullToggles = [
+    'showAntigravityVersion', 'showSandbox', 'showArtifacts', 'showTaskCount',
+    'showPendingInput', 'showToolConfirmation', 'showVimMode', 'showPlanTier',
+    'showAccount', 'showSkills', 'showMcpActivity',
+  ];
+  const full = mergeConfig({
+    display: Object.fromEntries(fullToggles.map(key => [key, true])),
+  });
+  for (const key of fullToggles) assert.equal(full.display[key], true, key);
+});
+
 test('mergeConfig defaults showMemoryUsage to false', () => {
   const config = mergeConfig({});
   assert.equal(config.display.showMemoryUsage, false);
@@ -347,7 +369,7 @@ test('getConfigPath respects CLAUDE_CONFIG_DIR', async () => {
   try {
     process.env.CLAUDE_CONFIG_DIR = customConfigDir;
     const configPath = getConfigPath();
-    assert.equal(configPath, path.join(customConfigDir, 'plugins', 'claude-hud', 'config.json'));
+    assert.equal(configPath, path.join(customConfigDir, 'plugins', 'agy-hud', 'config.json'));
   } finally {
     restoreEnvVar('CLAUDE_CONFIG_DIR', originalConfigDir);
     await rm(customConfigDir, { recursive: true, force: true });
@@ -360,7 +382,7 @@ test('loadConfig reads user config from CLAUDE_CONFIG_DIR', async () => {
 
   try {
     process.env.CLAUDE_CONFIG_DIR = customConfigDir;
-    const pluginDir = path.join(customConfigDir, 'plugins', 'claude-hud');
+    const pluginDir = path.join(customConfigDir, 'plugins', 'agy-hud');
     await mkdir(pluginDir, { recursive: true });
     await writeFile(
       path.join(pluginDir, 'config.json'),
@@ -378,6 +400,32 @@ test('loadConfig reads user config from CLAUDE_CONFIG_DIR', async () => {
     assert.equal(config.display.showSpeed, true);
   } finally {
     restoreEnvVar('CLAUDE_CONFIG_DIR', originalConfigDir);
+    await rm(customConfigDir, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig falls back to the legacy claude-hud path for CLAUDE_CONFIG_DIR migrations', async () => {
+  const originalAntigravityDir = process.env.ANTIGRAVITY_CONFIG_DIR;
+  const originalClaudeDir = process.env.CLAUDE_CONFIG_DIR;
+  const customConfigDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-legacy-config-'));
+
+  try {
+    delete process.env.ANTIGRAVITY_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = customConfigDir;
+    const legacyPluginDir = path.join(customConfigDir, 'plugins', 'claude-hud');
+    await mkdir(legacyPluginDir, { recursive: true });
+    await writeFile(
+      path.join(legacyPluginDir, 'config.json'),
+      JSON.stringify({ language: 'zh-Hans', lineLayout: 'compact' }),
+      'utf8',
+    );
+
+    const config = await loadConfig();
+    assert.equal(config.language, 'zh-Hans');
+    assert.equal(config.lineLayout, 'compact');
+  } finally {
+    restoreEnvVar('ANTIGRAVITY_CONFIG_DIR', originalAntigravityDir);
+    restoreEnvVar('CLAUDE_CONFIG_DIR', originalClaudeDir);
     await rm(customConfigDir, { recursive: true, force: true });
   }
 });

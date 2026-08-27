@@ -68,6 +68,17 @@ export function renderProjectLine(ctx: RenderContext): string | null {
     parts.push(modelColor(`[${modelDisplay}]`, colors));
   }
 
+  const nativeState: string[] = [];
+  if (display?.showAgentState !== false && ctx.stdin.agent_state) {
+    nativeState.push(formatAgentState(ctx.stdin.agent_state));
+  }
+  if (display?.showExecutionMode !== false && ctx.stdin.execution_mode) {
+    nativeState.push(sanitizeDisplayText(ctx.stdin.execution_mode.toLowerCase()));
+  }
+  if (nativeState.length > 0) {
+    parts.push(label(nativeState.join(' · '), colors));
+  }
+
   let projectPart: string | null = null;
   if (display?.showProject !== false && ctx.stdin.cwd) {
     const segments = ctx.stdin.cwd.split(/[/\\]/).filter(Boolean);
@@ -124,7 +135,8 @@ export function renderProjectLine(ctx: RenderContext): string | null {
       }
     }
 
-    gitPart = `${gitColor('git:(', colors)}${gitInner.join(' ')}${gitColor(')', colors)}`;
+    const vcsLabel = ctx.gitStatus.vcsType ?? 'git';
+    gitPart = `${gitColor(`${vcsLabel}:(`, colors)}${gitInner.join(' ')}${gitColor(')', colors)}`;
   }
 
   const projectWithDirs = projectPart && addedDirsPart
@@ -148,7 +160,9 @@ export function renderProjectLine(ctx: RenderContext): string | null {
     parts.push(label(ctx.transcript.sessionName, colors));
   }
 
-  if (display?.showClaudeCodeVersion && ctx.claudeCodeVersion) {
+  if (display?.showAntigravityVersion && ctx.claudeCodeVersion) {
+    parts.push(label(`agy v${ctx.claudeCodeVersion}`, colors));
+  } else if (display?.showClaudeCodeVersion && ctx.claudeCodeVersion) {
     parts.push(label(`CC v${ctx.claudeCodeVersion}`, colors));
   }
 
@@ -182,6 +196,12 @@ export function renderProjectLine(ctx: RenderContext): string | null {
   }
 
   return parts.join(' \u2502 ');
+}
+
+function formatAgentState(value: string): string {
+  const normalized = sanitizeDisplayText(value).trim().toLowerCase();
+  if (normalized === 'idle') return 'READY';
+  return normalized.toUpperCase();
 }
 
 function formatAheadCount(

@@ -199,6 +199,8 @@ export function _parseClaudeCodeVersion(output: string): string | undefined {
   return match?.[0];
 }
 
+export const _parseAntigravityVersion = _parseClaudeCodeVersion;
+
 export function _getClaudeVersionInvocation(
   binaryPath: string,
   platform: NodeJS.Platform = platformImpl(),
@@ -283,6 +285,8 @@ export async function getClaudeCodeVersion(): Promise<string | undefined> {
   hasResolved = true;
   return cachedVersion;
 }
+
+export const getAntigravityVersion = getClaudeCodeVersion;
 
 export function _resetVersionCache(): void {
   cachedBinaryKey = undefined;

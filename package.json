@@ -1,17 +1,20 @@
 {
   "name": "agy-hud",
-  "version": "0.1.0",
-  "description": "Real-time statusline HUD for Antigravity CLI",
+  "version": "0.2.0",
+  "description": "Antigravity-native real-time HUD for context, quota, agent state, tools, subagents, and Plan progress",
   "type": "module",
   "main": "dist/index.js",
   "files": [
     "dist/",
     "src/",
+    "scripts/",
+    "skills/",
     "commands/",
-    ".antigravity-plugin/"
+    ".antigravity-plugin/",
+    "plugin.json"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/clean-dist.js && tsc",
     "dev": "tsc --watch",
     "test": "npm run build && node --test",
     "test:coverage": "npm run build && c8 --reporter=text --reporter=lcov node --test",
@@ -25,7 +28,7 @@
     "statusline",
     "hud"
   ],
-  "author": "Jarrod Watts",
+  "author": "lllopic",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"

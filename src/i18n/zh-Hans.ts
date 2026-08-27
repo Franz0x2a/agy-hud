@@ -4,6 +4,7 @@ export const zhHans: Messages = {
   // Labels
   "label.context": "上下文",
   "label.usage": "用量",
+  "label.quota": "额度",
   "label.weekly": "本周",
   "label.approxRam": "内存",
   "label.promptCache": "缓存",
@@ -31,6 +32,7 @@ export const zhHans: Messages = {
   "format.tokPerSec": "tok/s",
   "format.justNow": "刚刚",
   "format.ago": "前",
+  "format.remaining": "剩余",
 
   // Init
   "init.initializing": "[agy-hud] 正在初始化...",

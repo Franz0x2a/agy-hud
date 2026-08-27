@@ -2,6 +2,8 @@ import type { HudConfig } from './config.js';
 import type { GitStatus } from './git.js';
 
 export interface StdinData {
+  session_id?: string;
+  conversation_id?: string;
   transcript_path?: string;
   cwd?: string;
   workspace?: {
@@ -24,7 +26,6 @@ export interface StdinData {
       cache_creation_input_tokens?: number;
       cache_read_input_tokens?: number;
     } | null;
-    // Native percentage fields (Claude Code v2.1.6+)
     used_percentage?: number | null;
     remaining_percentage?: number | null;
   };
@@ -34,6 +35,42 @@ export interface StdinData {
     total_api_duration_ms?: number | null;
     total_lines_added?: number | null;
     total_lines_removed?: number | null;
+  } | null;
+  version?: string;
+  product?: string;
+  exceeds_200k_tokens?: boolean | null;
+  quota?: Record<string, {
+    remaining_fraction?: number | null;
+    reset_time?: string | null;
+    reset_in_seconds?: number | null;
+  }> | null;
+  agent_state?: string;
+  vcs?: {
+    type?: string;
+    branch?: string;
+    client?: string;
+    dirty?: boolean;
+  } | null;
+  sandbox?: {
+    enabled?: boolean;
+    allow_network?: boolean;
+  } | null;
+  artifact_count?: number;
+  plan_tier?: string;
+  email?: string;
+  pending_input_count?: number;
+  tool_confirmation_pending?: boolean;
+  task_count?: number;
+  subagents?: Array<{
+    id?: string;
+    type?: string;
+    status?: string;
+    description?: string;
+  }>;
+  terminal_width?: number;
+  execution_mode?: string;
+  vim?: {
+    mode?: string;
   } | null;
   rate_limits?: {
     five_hour?: {
@@ -50,6 +87,13 @@ export interface StdinData {
   // shape is kept for backwards compatibility with the original PR #471 design
   // that future-proofed a string form before Anthropic had committed a schema.
   effort?: string | { level?: string | null; [key: string]: unknown } | null;
+}
+
+export interface QuotaWindow {
+  id: string;
+  remainingPercent: number;
+  resetAt: Date | null;
+  resetInSeconds: number | null;
 }
 
 export interface ToolEntry {
@@ -82,6 +126,7 @@ export interface UsageData {
   sevenDay: number | null;  // 0-100 percentage, null if unavailable
   fiveHourResetAt: Date | null;
   sevenDayResetAt: Date | null;
+  quotaWindows?: QuotaWindow[];
   balanceLabel?: string | null;  // optional raw balance text (e.g. "¥6.35")
 }
 
@@ -121,6 +166,8 @@ export interface TranscriptData {
   tools: ToolEntry[];
   agents: AgentEntry[];
   todos: TodoItem[];
+  skills: string[];
+  mcpServers: string[];
   sessionStart?: Date;
   sessionName?: string;
   lastAssistantResponseAt?: Date;

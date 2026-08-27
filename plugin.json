@@ -1,0 +1,5 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "agy-hud",
+  "description": "Antigravity-native real-time HUD for context, quota, agent state, tools, subagents, and Plan progress"
+}

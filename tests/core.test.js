@@ -20,7 +20,7 @@ function restoreEnvVar(name, value) {
 }
 
 async function getTranscriptCacheFile(configDir) {
-  const cacheDir = path.join(configDir, 'plugins', 'claude-hud', 'transcript-cache');
+  const cacheDir = path.join(configDir, 'plugins', 'agy-hud', 'transcript-cache');
   const files = await readdir(cacheDir);
   assert.equal(files.length, 1, `expected exactly one transcript cache file in ${cacheDir}`);
   return path.join(cacheDir, files[0]);
@@ -138,7 +138,7 @@ test('getBufferedPercent applies full buffer at high usage', () => {
   assert.equal(percent, 72);
 });
 
-// Native percentage tests (Claude Code v2.1.6+)
+// Native Antigravity percentage tests
 test('getContextPercent prefers native used_percentage when available', () => {
   const percent = getContextPercent({
     context_window: {
@@ -148,6 +148,17 @@ test('getContextPercent prefers native used_percentage when available', () => {
     },
   });
   assert.equal(percent, 47);
+});
+
+test('getContextPercent preserves Antigravity native decimal precision', () => {
+  const percent = getContextPercent({
+    context_window: {
+      context_window_size: 1048576,
+      used_percentage: 14.24,
+      current_usage: { input_tokens: 63382 },
+    },
+  });
+  assert.equal(percent, 14.24);
 });
 
 test('getBufferedPercent prefers native used_percentage when available', () => {
@@ -210,11 +221,7 @@ test('native percentage handles zero correctly', () => {
   assert.equal(getBufferedPercent({ context_window: { used_percentage: 0 } }), 0);
 });
 
-test('getContextPercent falls through to token-based calculation when used_percentage is 0 but tokens exist', () => {
-  // On a fresh session Claude Code emits used_percentage=0 before the first API
-  // response, while current_usage already contains the initial-context tokens
-  // (system prompt, tools, memory files).  The HUD should reflect them.
-  // 18200 / 200000 = 9.1% → rounds to 9%
+test('getContextPercent treats Antigravity native zero as authoritative', () => {
   const percent = getContextPercent({
     context_window: {
       context_window_size: 200000,
@@ -222,13 +229,10 @@ test('getContextPercent falls through to token-based calculation when used_perce
       used_percentage: 0,
     },
   });
-  assert.equal(percent, 9);
+  assert.equal(percent, 0);
 });
 
-test('getBufferedPercent falls through to token-based calculation when used_percentage is 0 but tokens exist', () => {
-  // Same fresh-session scenario for the buffered variant.
-  // 18200 / 200000 = 9.1% raw; scale = (0.091 - 0.05) / (0.50 - 0.05) ≈ 0.091
-  // buffer = 200000 * 0.165 * 0.091 ≈ 3003; (18200 + 3003) / 200000 ≈ 10.6% → 11%
+test('getBufferedPercent treats Antigravity native zero as authoritative', () => {
   const percent = getBufferedPercent({
     context_window: {
       context_window_size: 200000,
@@ -236,7 +240,7 @@ test('getBufferedPercent falls through to token-based calculation when used_perc
       used_percentage: 0,
     },
   });
-  assert.ok(percent > 9, `expected buffered percent > 9, got ${percent}`);
+  assert.equal(percent, 0);
 });
 
 test('native percentage clamps negative values to 0', () => {
@@ -1267,7 +1271,7 @@ test('parseTranscript does not cache partial results when stream creation fails 
   const configDir = path.join(dir, '.claude-test');
   const transcriptPath = path.join(dir, 'stream-failure.jsonl');
   const originalConfigDir = process.env.CLAUDE_CONFIG_DIR;
-  const cacheDir = path.join(configDir, 'plugins', 'claude-hud', 'transcript-cache');
+  const cacheDir = path.join(configDir, 'plugins', 'agy-hud', 'transcript-cache');
 
   process.env.CLAUDE_CONFIG_DIR = configDir;
   await writeFile(transcriptPath, '{"timestamp":"2024-01-01T00:00:00.000Z"}\n', 'utf8');
@@ -1906,7 +1910,10 @@ test('Issue #3: MCP count updates correctly when servers are disabled', async ()
 // === Config cache tests ===
 
 async function getConfigCacheDir(configDir) {
-  return path.join(configDir, 'plugins', 'claude-hud', 'config-cache');
+  const cacheRoot = path.basename(configDir) === '.claude'
+    ? path.join(path.dirname(configDir), '.gemini', 'antigravity-cli')
+    : configDir;
+  return path.join(cacheRoot, 'plugins', 'agy-hud', 'config-cache');
 }
 
 test('countConfigs cache: second call uses cache (mtime unchanged)', async () => {

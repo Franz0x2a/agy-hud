@@ -5,10 +5,16 @@ import * as readline from 'readline';
 import { createHash } from 'node:crypto';
 import { getHudPluginDir } from './antigravity-config-dir.js';
 import type { TranscriptData, ToolEntry, AgentEntry, TodoItem, SessionTokenUsage } from './types.js';
+import { sanitizeTerminalText } from './sanitize.js';
 
 interface TranscriptLine {
   timestamp?: string;
+  created_at?: string;
   type?: string;
+  status?: string;
+  source?: string;
+  step_index?: number;
+  tool_calls?: AntigravityToolCall[];
   subtype?: string;
   operation?: string;
   content?: string;
@@ -29,6 +35,11 @@ interface TranscriptLine {
     postTokens?: number;
     durationMs?: number;
   };
+}
+
+interface AntigravityToolCall {
+  name?: string;
+  args?: Record<string, unknown>;
 }
 
 interface ContentBlock {
@@ -59,6 +70,8 @@ interface SerializedTranscriptData {
   tools: SerializedToolEntry[];
   agents: SerializedAgentEntry[];
   todos: TodoItem[];
+  skills: string[];
+  mcpServers: string[];
   sessionStart?: string;
   sessionName?: string;
   lastAssistantResponseAt?: string;
@@ -74,7 +87,9 @@ interface TranscriptCacheFile {
   data: SerializedTranscriptData;
 }
 
-const TRANSCRIPT_CACHE_VERSION = 5;
+const TRANSCRIPT_CACHE_VERSION = 7;
+const MAX_TRANSCRIPT_READ_BYTES = 2 * 1024 * 1024;
+const MAX_TRANSCRIPT_PREFIX_BYTES = 64 * 1024;
 
 let createReadStreamImpl: typeof fs.createReadStream = fs.createReadStream;
 
@@ -128,6 +143,31 @@ function readTranscriptFileState(transcriptPath: string): TranscriptFileState | 
   }
 }
 
+function readTranscriptStart(transcriptPath: string): Date | undefined {
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(transcriptPath, 'r');
+    const buffer = Buffer.alloc(MAX_TRANSCRIPT_PREFIX_BYTES);
+    const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
+    const prefix = buffer.subarray(0, bytesRead).toString('utf8');
+    for (const line of prefix.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      try {
+        const entry = JSON.parse(line) as TranscriptLine;
+        const timestamp = parseTimestamp(entry.created_at ?? entry.timestamp);
+        if (timestamp) return timestamp;
+      } catch {
+        // The first bounded chunk can end inside a JSON line.
+      }
+    }
+  } catch {
+    return undefined;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+  return undefined;
+}
+
 function serializeTranscriptData(data: TranscriptData): SerializedTranscriptData {
   return {
     tools: data.tools.map((tool) => ({
@@ -141,6 +181,8 @@ function serializeTranscriptData(data: TranscriptData): SerializedTranscriptData
       endTime: agent.endTime?.toISOString(),
     })),
     todos: data.todos.map((todo) => ({ ...todo })),
+    skills: [...data.skills],
+    mcpServers: [...data.mcpServers],
     sessionStart: data.sessionStart?.toISOString(),
     sessionName: data.sessionName,
     lastAssistantResponseAt: data.lastAssistantResponseAt?.toISOString(),
@@ -163,6 +205,8 @@ function deserializeTranscriptData(data: SerializedTranscriptData): TranscriptDa
       endTime: agent.endTime ? new Date(agent.endTime) : undefined,
     })),
     todos: data.todos.map((todo) => ({ ...todo })),
+    skills: Array.isArray(data.skills) ? [...data.skills] : [],
+    mcpServers: Array.isArray(data.mcpServers) ? [...data.mcpServers] : [],
     sessionStart: data.sessionStart ? new Date(data.sessionStart) : undefined,
     sessionName: data.sessionName,
     lastAssistantResponseAt: data.lastAssistantResponseAt ? new Date(data.lastAssistantResponseAt) : undefined,
@@ -215,6 +259,8 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
     tools: [],
     agents: [],
     todos: [],
+    skills: [],
+    mcpServers: [],
   };
 
   if (!transcriptPath || !fs.existsSync(transcriptPath)) {
@@ -238,6 +284,10 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
 
   const toolMap = new Map<string, ToolEntry>();
   const agentMap = new Map<string, AgentEntry>();
+  const pendingAntigravityTools: ToolEntry[] = [];
+  const pendingAntigravityAgents: AgentEntry[] = [];
+  const skills = new Set<string>();
+  const mcpServers = new Set<string>();
   let latestTodos: TodoItem[] = [];
   const taskIdToIndex = new Map<string, number>();
   const queueCompletionMap = new Map<string, Date>();
@@ -254,9 +304,13 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
   let lastUsageKey: string | undefined;
 
   let parsedCleanly = false;
+  const start = Math.max(0, transcriptState.size - MAX_TRANSCRIPT_READ_BYTES);
+  if (start > 0) {
+    result.sessionStart = readTranscriptStart(canonicalTranscriptPath);
+  }
 
   try {
-    const fileStream = createReadStreamImpl(canonicalTranscriptPath);
+    const fileStream = createReadStreamImpl(canonicalTranscriptPath, { start });
     const rl = readline.createInterface({
       input: fileStream,
       crlfDelay: Infinity,
@@ -270,10 +324,23 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
 
       try {
         const entry = JSON.parse(line) as TranscriptLine;
+        if (isAntigravityEntry(entry)) {
+          processAntigravityEntry(
+            entry,
+            toolMap,
+            agentMap,
+            pendingAntigravityTools,
+            pendingAntigravityAgents,
+            skills,
+            mcpServers,
+            result,
+          );
+          continue;
+        }
         if (entry.type === 'custom-title' && typeof entry.customTitle === 'string') {
-          customTitle = entry.customTitle;
+          customTitle = sanitizeTranscriptText(entry.customTitle).trim().slice(0, 500) || undefined;
         } else if (typeof entry.slug === 'string') {
-          latestSlug = entry.slug;
+          latestSlug = sanitizeTranscriptText(entry.slug).trim().slice(0, 500) || undefined;
         }
         // Accumulate token usage from assistant messages.
         // Claude Code can write the same API response to the transcript 2-3 times
@@ -350,8 +417,12 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
   result.tools = Array.from(toolMap.values()).slice(-20);
   result.agents = Array.from(agentMap.values()).slice(-10);
   result.todos = latestTodos;
+  result.skills = Array.from(skills).slice(-20);
+  result.mcpServers = Array.from(mcpServers).slice(-20);
   result.sessionName = customTitle ?? latestSlug;
-  result.sessionTokens = sessionTokens;
+  // A tail-only parse cannot produce a truthful cumulative token total.
+  // Hide it instead of presenting a plausible but under-counted value.
+  result.sessionTokens = start === 0 ? sessionTokens : undefined;
   result.lastCompactBoundaryAt = lastCompactBoundaryAt;
   result.lastCompactPostTokens = lastCompactPostTokens;
   if (parsedCleanly) {
@@ -359,6 +430,170 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
   }
 
   return result;
+}
+
+function isAntigravityEntry(entry: TranscriptLine): boolean {
+  return typeof entry.created_at === 'string'
+    || typeof entry.step_index === 'number'
+    || Array.isArray(entry.tool_calls);
+}
+
+function processAntigravityEntry(
+  entry: TranscriptLine,
+  toolMap: Map<string, ToolEntry>,
+  agentMap: Map<string, AgentEntry>,
+  pendingTools: ToolEntry[],
+  pendingAgents: AgentEntry[],
+  skills: Set<string>,
+  mcpServers: Set<string>,
+  result: TranscriptData,
+): void {
+  const timestamp = parseTimestamp(entry.created_at);
+  if (!result.sessionStart && timestamp) {
+    result.sessionStart = timestamp;
+  }
+  if (entry.source === 'MODEL' && timestamp) {
+    result.lastAssistantResponseAt = timestamp;
+  }
+
+  if (entry.type === 'PLANNER_RESPONSE' && Array.isArray(entry.tool_calls)) {
+    entry.tool_calls.forEach((call, index) => {
+      const name = typeof call.name === 'string'
+        ? sanitizeTranscriptText(call.name).trim().slice(0, 128)
+        : '';
+      if (!name) return;
+      const args = call.args && typeof call.args === 'object' ? call.args : {};
+
+      if (name.toLowerCase() === 'skill') {
+        const skill = firstString(args, ['Skill', 'skill', 'name']);
+        if (skill) skills.add(skill);
+        return;
+      }
+
+      const mcpMatch = name.match(/^mcp__(.+?)__/i);
+      if (mcpMatch?.[1]) {
+        mcpServers.add(mcpMatch[1]);
+      }
+
+      if (name === 'invoke_subagent') {
+        const subagents = Array.isArray(args.Subagents) ? args.Subagents : [];
+        subagents.forEach((raw, agentIndex) => {
+          if (!raw || typeof raw !== 'object') return;
+          const subagent = raw as Record<string, unknown>;
+          const id = `agy-agent-${entry.step_index ?? 'unknown'}-${index}-${agentIndex}`;
+          const agent: AgentEntry = {
+            id,
+            type: firstString(subagent, ['TypeName', 'Role']) ?? 'agent',
+            description: firstString(args, ['toolSummary', 'toolAction'])
+              ?? firstString(subagent, ['Prompt']),
+            status: 'running',
+            startTime: timestamp ?? new Date(),
+          };
+          agentMap.set(id, agent);
+          pendingAgents.push(agent);
+        });
+        return;
+      }
+
+      const id = `agy-tool-${entry.step_index ?? 'unknown'}-${index}`;
+      const tool: ToolEntry = {
+        id,
+        name,
+        target: extractAntigravityTarget(name, args),
+        status: 'running',
+        startTime: timestamp ?? new Date(),
+      };
+      toolMap.set(id, tool);
+      pendingTools.push(tool);
+    });
+    return;
+  }
+
+  if (entry.type === 'INVOKE_SUBAGENT') {
+    for (const agent of pendingAgents.splice(0)) {
+      agent.status = 'completed';
+      if (timestamp) agent.endTime = timestamp;
+    }
+    return;
+  }
+
+  const expectedTool = antigravityActionToolName(entry.type);
+  if (!expectedTool) return;
+  const pendingIndex = expectedTool === '*'
+    ? pendingTools.length - 1
+    : pendingTools.findIndex((tool) => canonicalToolName(tool.name) === expectedTool);
+  if (pendingIndex < 0) return;
+
+  const tool = pendingTools[pendingIndex];
+  tool.status = entry.status === 'ERROR'
+    ? 'error'
+    : entry.status === 'RUNNING' ? 'running' : 'completed';
+  if (tool.status === 'running') return;
+
+  pendingTools.splice(pendingIndex, 1);
+  if (timestamp) tool.endTime = timestamp;
+}
+
+function parseTimestamp(value: string | undefined): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function firstString(source: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) {
+      return sanitizeTranscriptText(value).trim().slice(0, 500);
+    }
+  }
+  return undefined;
+}
+
+function sanitizeTranscriptText(value: string): string {
+  return sanitizeTerminalText(value);
+}
+
+function canonicalToolName(name: string): string {
+  return name.toLowerCase();
+}
+
+function antigravityActionToolName(type: string | undefined): string | null {
+  switch (type) {
+    case 'RUN_COMMAND': return 'run_command';
+    case 'VIEW_FILE': return 'view_file';
+    case 'GREP_SEARCH': return 'grep_search';
+    case 'LIST_DIRECTORY': return 'list_directory';
+    case 'READ_URL_CONTENT': return 'read_url_content';
+    case 'SEARCH_WEB': return 'search_web';
+    case 'CODE_ACTION': return '*';
+    case 'GENERIC': return '*';
+    default: return null;
+  }
+}
+
+function extractAntigravityTarget(name: string, args: Record<string, unknown>): string | undefined {
+  const lower = name.toLowerCase();
+  switch (lower) {
+    case 'run_command':
+      return firstString(args, ['CommandLine']);
+    case 'view_file':
+      return firstString(args, ['AbsolutePath']);
+    case 'grep_search':
+      return firstString(args, ['Query']);
+    case 'list_directory':
+    case 'list_dir':
+      return firstString(args, ['DirectoryPath', 'AbsolutePath']);
+    case 'read_url_content':
+      return firstString(args, ['Url', 'URL']);
+    case 'search_web':
+      return firstString(args, ['Query', 'query']);
+    case 'write_to_file':
+    case 'replace_file_content':
+      return firstString(args, ['TargetFile', 'AbsolutePath']);
+    default:
+      return firstString(args, ['toolSummary', 'toolAction']);
+  }
 }
 
 export function _setCreateReadStreamForTests(impl: typeof fs.createReadStream | null): void {
@@ -389,10 +624,11 @@ function processEntry(
 
   for (const block of content) {
     if (block.type === 'tool_use' && block.id && block.name) {
+      const safeToolName = sanitizeTranscriptText(block.name).trim().slice(0, 128);
       const toolEntry: ToolEntry = {
         id: block.id,
-        name: block.name,
-        target: extractTarget(block.name, block.input),
+        name: safeToolName,
+        target: extractTarget(safeToolName, block.input),
         status: 'running',
         startTime: timestamp,
       };
@@ -401,9 +637,9 @@ function processEntry(
         const input = block.input as Record<string, unknown>;
         const agentEntry: AgentEntry = {
           id: block.id,
-          type: (input?.subagent_type as string) ?? 'agent',
-          model: (input?.model as string) ?? undefined,
-          description: (input?.description as string) ?? undefined,
+          type: safeLegacyString(input?.subagent_type, 128) ?? 'agent',
+          model: safeLegacyString(input?.model, 128),
+          description: safeLegacyString(input?.description, 500),
           status: 'running',
           startTime: timestamp,
           background: (input?.run_in_background as boolean) === true,
@@ -433,7 +669,10 @@ function processEntry(
 
           latestTodos.length = 0;
           taskIdToIndex.clear();
-          latestTodos.push(...input.todos);
+          latestTodos.push(...input.todos.slice(0, 256).map((todo) => ({
+            content: sanitizeTranscriptText(String(todo?.content ?? '')).trim().slice(0, 500),
+            status: normalizeTaskStatus(todo?.status) ?? 'pending',
+          })).filter((todo) => todo.content.length > 0));
 
           // Consume one queued taskId per new todo that matches by content,
           // so duplicate-content items still each get their own taskId.
@@ -450,8 +689,8 @@ function processEntry(
         }
       } else if (block.name === 'TaskCreate') {
         const input = block.input as Record<string, unknown>;
-        const subject = typeof input?.subject === 'string' ? input.subject : '';
-        const description = typeof input?.description === 'string' ? input.description : '';
+        const subject = safeLegacyString(input?.subject, 500) ?? '';
+        const description = safeLegacyString(input?.description, 500) ?? '';
         const content = subject || description || 'Untitled task';
         const status = normalizeTaskStatus(input?.status) ?? 'pending';
         latestTodos.push({ content, status });
@@ -472,8 +711,8 @@ function processEntry(
             latestTodos[index].status = status;
           }
 
-          const subject = typeof input?.subject === 'string' ? input.subject : '';
-          const description = typeof input?.description === 'string' ? input.description : '';
+          const subject = safeLegacyString(input?.subject, 500) ?? '';
+          const description = safeLegacyString(input?.description, 500) ?? '';
           const content = subject || description;
           if (content) {
             latestTodos[index].content = content;
@@ -506,20 +745,24 @@ function extractTarget(toolName: string, input?: Record<string, unknown>): strin
     case 'Read':
     case 'Write':
     case 'Edit':
-      return (input.file_path as string) ?? (input.path as string);
+      return safeLegacyString(input.file_path ?? input.path, 500);
     case 'Glob':
-      return input.pattern as string;
+      return safeLegacyString(input.pattern, 500);
     case 'Grep':
-      return input.pattern as string;
+      return safeLegacyString(input.pattern, 500);
     case 'Skill':
-      return typeof input.skill === 'string' && input.skill.trim().length > 0
-        ? input.skill
-        : undefined;
-    case 'Bash':
-      const cmd = input.command as string;
-      return cmd?.slice(0, 30) + (cmd?.length > 30 ? '...' : '');
+      return safeLegacyString(input.skill, 500);
+    case 'Bash': {
+      const cmd = safeLegacyString(input.command, 500);
+      return cmd ? cmd.slice(0, 30) + (cmd.length > 30 ? '...' : '') : undefined;
+    }
   }
   return undefined;
+}
+
+function safeLegacyString(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  return sanitizeTranscriptText(value).trim().slice(0, maxLength) || undefined;
 }
 
 function resolveTaskIndex(

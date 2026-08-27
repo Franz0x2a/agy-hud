@@ -111,6 +111,19 @@ export interface HudConfig {
     showTodos: boolean;
     showSessionName: boolean;
     showClaudeCodeVersion: boolean;
+    showAntigravityVersion: boolean;
+    showAgentState: boolean;
+    showExecutionMode: boolean;
+    showSandbox: boolean;
+    showArtifacts: boolean;
+    showTaskCount: boolean;
+    showPendingInput: boolean;
+    showToolConfirmation: boolean;
+    showVimMode: boolean;
+    showPlanTier: boolean;
+    showAccount: boolean;
+    showSkills: boolean;
+    showMcpActivity: boolean;
     showEffortLevel: boolean;
     showMemoryUsage: boolean;
     showPromptCache: boolean;
@@ -159,22 +172,35 @@ export const DEFAULT_CONFIG: HudConfig = {
     showAddedDirs: true,
     addedDirsLayout: 'inline',
     showContextBar: true,
-    contextValue: 'percent',
+    contextValue: 'both',
     showConfigCounts: false,
     showCost: false,
     showDuration: false,
     showSpeed: false,
     showTokenBreakdown: true,
     showUsage: true,
-    usageValue: 'percent',
+    usageValue: 'remaining',
     usageBarEnabled: true,
     showResetLabel: true,
     usageCompact: false,
-    showTools: false,
-    showAgents: false,
-    showTodos: false,
+    showTools: true,
+    showAgents: true,
+    showTodos: true,
     showSessionName: false,
     showClaudeCodeVersion: false,
+    showAntigravityVersion: false,
+    showAgentState: true,
+    showExecutionMode: true,
+    showSandbox: false,
+    showArtifacts: false,
+    showTaskCount: false,
+    showPendingInput: false,
+    showToolConfirmation: false,
+    showVimMode: false,
+    showPlanTier: false,
+    showAccount: false,
+    showSkills: false,
+    showMcpActivity: false,
     showEffortLevel: false,
     showMemoryUsage: false,
     showPromptCache: false,
@@ -217,6 +243,13 @@ export const DEFAULT_CONFIG: HudConfig = {
 export function getConfigPath(): string {
   const homeDir = os.homedir();
   return path.join(getHudPluginDir(homeDir), 'config.json');
+}
+
+function getLegacyAliasedConfigPath(): string | null {
+  if (process.env.ANTIGRAVITY_CONFIG_DIR?.trim() || !process.env.CLAUDE_CONFIG_DIR?.trim()) {
+    return null;
+  }
+  return path.join(getHudPluginDir(os.homedir()), '..', 'claude-hud', 'config.json');
 }
 
 function validatePathLevels(value: unknown): value is 1 | 2 | 3 {
@@ -540,6 +573,45 @@ export function mergeConfig(userConfig: Partial<HudConfig>): HudConfig {
     showClaudeCodeVersion: typeof migrated.display?.showClaudeCodeVersion === 'boolean'
       ? migrated.display.showClaudeCodeVersion
       : DEFAULT_CONFIG.display.showClaudeCodeVersion,
+    showAntigravityVersion: typeof migrated.display?.showAntigravityVersion === 'boolean'
+      ? migrated.display.showAntigravityVersion
+      : DEFAULT_CONFIG.display.showAntigravityVersion,
+    showAgentState: typeof migrated.display?.showAgentState === 'boolean'
+      ? migrated.display.showAgentState
+      : DEFAULT_CONFIG.display.showAgentState,
+    showExecutionMode: typeof migrated.display?.showExecutionMode === 'boolean'
+      ? migrated.display.showExecutionMode
+      : DEFAULT_CONFIG.display.showExecutionMode,
+    showSandbox: typeof migrated.display?.showSandbox === 'boolean'
+      ? migrated.display.showSandbox
+      : DEFAULT_CONFIG.display.showSandbox,
+    showArtifacts: typeof migrated.display?.showArtifacts === 'boolean'
+      ? migrated.display.showArtifacts
+      : DEFAULT_CONFIG.display.showArtifacts,
+    showTaskCount: typeof migrated.display?.showTaskCount === 'boolean'
+      ? migrated.display.showTaskCount
+      : DEFAULT_CONFIG.display.showTaskCount,
+    showPendingInput: typeof migrated.display?.showPendingInput === 'boolean'
+      ? migrated.display.showPendingInput
+      : DEFAULT_CONFIG.display.showPendingInput,
+    showToolConfirmation: typeof migrated.display?.showToolConfirmation === 'boolean'
+      ? migrated.display.showToolConfirmation
+      : DEFAULT_CONFIG.display.showToolConfirmation,
+    showVimMode: typeof migrated.display?.showVimMode === 'boolean'
+      ? migrated.display.showVimMode
+      : DEFAULT_CONFIG.display.showVimMode,
+    showPlanTier: typeof migrated.display?.showPlanTier === 'boolean'
+      ? migrated.display.showPlanTier
+      : DEFAULT_CONFIG.display.showPlanTier,
+    showAccount: typeof migrated.display?.showAccount === 'boolean'
+      ? migrated.display.showAccount
+      : DEFAULT_CONFIG.display.showAccount,
+    showSkills: typeof migrated.display?.showSkills === 'boolean'
+      ? migrated.display.showSkills
+      : DEFAULT_CONFIG.display.showSkills,
+    showMcpActivity: typeof migrated.display?.showMcpActivity === 'boolean'
+      ? migrated.display.showMcpActivity
+      : DEFAULT_CONFIG.display.showMcpActivity,
     showEffortLevel: typeof migrated.display?.showEffortLevel === 'boolean'
       ? migrated.display.showEffortLevel
       : DEFAULT_CONFIG.display.showEffortLevel,
@@ -642,16 +714,18 @@ export function mergeConfig(userConfig: Partial<HudConfig>): HudConfig {
 }
 
 export async function loadConfig(): Promise<HudConfig> {
-  const configPath = getConfigPath();
+  const configPaths = [getConfigPath(), getLegacyAliasedConfigPath()].filter(
+    (candidate): candidate is string => candidate !== null,
+  );
 
   try {
-    if (!fs.existsSync(configPath)) {
-      return mergeConfig({});
+    for (const configPath of configPaths) {
+      if (!fs.existsSync(configPath)) continue;
+      const content = fs.readFileSync(configPath, 'utf-8');
+      const userConfig = JSON.parse(content) as Partial<HudConfig>;
+      return mergeConfig(userConfig);
     }
-
-    const content = fs.readFileSync(configPath, 'utf-8');
-    const userConfig = JSON.parse(content) as Partial<HudConfig>;
-    return mergeConfig(userConfig);
+    return mergeConfig({});
   } catch {
     return mergeConfig({});
   }

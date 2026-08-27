@@ -1,5 +1,6 @@
 import { readStdin, getUsageFromStdin } from "./stdin.js";
 import { parseTranscript } from "./transcript.js";
+import { parseArtifactProgress } from "./artifacts.js";
 import { render } from "./render/index.js";
 import { countConfigs } from "./config-reader.js";
 import { getGitStatus } from "./git.js";
@@ -22,6 +23,7 @@ export type MainDeps = {
   getUsageFromStdin: typeof getUsageFromStdin;
   getUsageFromExternalSnapshot: typeof getUsageFromExternalSnapshot;
   parseTranscript: typeof parseTranscript;
+  parseArtifactProgress: typeof parseArtifactProgress;
   countConfigs: typeof countConfigs;
   getGitStatus: typeof getGitStatus;
   loadConfig: typeof loadConfig;
@@ -41,6 +43,7 @@ export async function main(overrides: Partial<MainDeps> = {}): Promise<void> {
     getUsageFromStdin,
     getUsageFromExternalSnapshot,
     parseTranscript,
+    parseArtifactProgress,
     countConfigs,
     getGitStatus,
     loadConfig,
@@ -70,21 +73,35 @@ export async function main(overrides: Partial<MainDeps> = {}): Promise<void> {
       return;
     }
 
+    const config = await deps.loadConfig();
+    setLanguage(config.language);
     const transcriptPath = stdin.transcript_path ?? "";
-    const transcript = await deps.parseTranscript(transcriptPath);
+    const transcript: RenderContext['transcript'] = needsTranscript(config)
+      ? await deps.parseTranscript(transcriptPath)
+      : { tools: [], agents: [], todos: [], skills: [], mcpServers: [] };
+    if (config.display.showTodos) {
+      const artifactTodos = await deps.parseArtifactProgress(transcriptPath);
+      if (artifactTodos.length > 0) {
+        transcript.todos = artifactTodos;
+      }
+    }
 
     deps.applyContextWindowFallback(stdin, {}, transcript.sessionName, {
       lastCompactBoundaryAt: transcript.lastCompactBoundaryAt,
       lastCompactPostTokens: transcript.lastCompactPostTokens,
     });
 
-    const { claudeMdCount, rulesCount, mcpCount, hooksCount, outputStyle } =
-      await deps.countConfigs(stdin.cwd);
-
-    const config = await deps.loadConfig();
-    setLanguage(config.language);
+    const configCounts = config.display.showConfigCounts || config.display.showOutputStyle
+      ? await deps.countConfigs(stdin.cwd)
+      : { claudeMdCount: 0, rulesCount: 0, mcpCount: 0, hooksCount: 0, outputStyle: undefined };
+    const { claudeMdCount, rulesCount, mcpCount, hooksCount, outputStyle } = configCounts;
+    const needsExtendedGit = config.gitStatus.showAheadBehind || config.gitStatus.showFileStats;
+    const nativeGitStatus = getNativeVcsStatus(stdin);
+    const nativeIsNonGit = nativeGitStatus?.vcsType !== undefined && nativeGitStatus.vcsType !== 'git';
     const gitStatus = config.gitStatus.enabled
-      ? await deps.getGitStatus(stdin.cwd)
+      ? (nativeGitStatus && (!needsExtendedGit || nativeIsNonGit)
+        ? nativeGitStatus
+        : await deps.getGitStatus(stdin.cwd) ?? nativeGitStatus)
       : null;
 
     let usageData: RenderContext["usageData"] = null;
@@ -102,8 +119,8 @@ export async function main(overrides: Partial<MainDeps> = {}): Promise<void> {
       transcript.sessionStart,
       deps.now,
     );
-    const claudeCodeVersion = config.display.showClaudeCodeVersion
-      ? await deps.getClaudeCodeVersion()
+    const claudeCodeVersion = (config.display.showAntigravityVersion || config.display.showClaudeCodeVersion)
+      ? stdin.version ?? await deps.getClaudeCodeVersion()
       : undefined;
     const effortInfo = config.display.showEffortLevel
       ? resolveEffortLevel(stdin.effort)
@@ -139,6 +156,36 @@ export async function main(overrides: Partial<MainDeps> = {}): Promise<void> {
       error instanceof Error ? error.message : "Unknown error",
     );
   }
+}
+
+function needsTranscript(config: RenderContext['config']): boolean {
+  const display = config.display;
+  return display.showTools
+    || display.showAgents
+    || display.showTodos
+    || display.showSessionName
+    || display.showDuration
+    || display.showCost
+    || display.showPromptCache
+    || display.showSessionTokens
+    || display.showSessionStartDate
+    || display.showLastResponseAt
+    || display.showSkills
+    || display.showMcpActivity;
+}
+
+function getNativeVcsStatus(stdin: RenderContext['stdin']): RenderContext['gitStatus'] {
+  const vcs = stdin.vcs;
+  if (!vcs?.branch) return null;
+  const vcsType = vcs.type?.toLowerCase();
+  if (vcsType !== undefined && vcsType !== 'git' && vcsType !== 'jj' && vcsType !== 'hg') return null;
+  return {
+    branch: vcs.branch,
+    isDirty: vcs.dirty === true,
+    vcsType: vcsType ?? 'git',
+    ahead: 0,
+    behind: 0,
+  };
 }
 
 export function formatSessionDuration(
