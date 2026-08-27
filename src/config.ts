@@ -73,6 +73,7 @@ export const DEFAULT_MERGE_GROUPS: HudElement[][] = [
 const KNOWN_ELEMENTS = new Set<HudElement>(DEFAULT_ELEMENT_ORDER);
 
 export interface HudConfig {
+  configVersion: number;
   language: Language;
   lineLayout: LineLayoutType;
   showSeparators: boolean;
@@ -150,6 +151,7 @@ export interface HudConfig {
 }
 
 export const DEFAULT_CONFIG: HudConfig = {
+  configVersion: 2,
   language: 'en',
   lineLayout: 'expanded',
   showSeparators: false,
@@ -710,7 +712,19 @@ export function mergeConfig(userConfig: Partial<HudConfig>): HudConfig {
       : DEFAULT_CONFIG.colors.barEmpty,
   };
 
-  return { language, lineLayout, showSeparators, pathLevels, maxWidth, forceMaxWidth, elementOrder, gitStatus, display, colors };
+  return {
+    configVersion: DEFAULT_CONFIG.configVersion,
+    language,
+    lineLayout,
+    showSeparators,
+    pathLevels,
+    maxWidth,
+    forceMaxWidth,
+    elementOrder,
+    gitStatus,
+    display,
+    colors,
+  };
 }
 
 export async function loadConfig(): Promise<HudConfig> {

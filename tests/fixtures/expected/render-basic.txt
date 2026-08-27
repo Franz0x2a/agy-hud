@@ -1,4 +1,4 @@
-[Opus] │ my-project
+AGY · Opus · my-project
 Context ███░░░░░░░ 29% (45k/200k)
 ◐ Edit: .../authentication.ts | ✓ Read ×1
 ✓ explore [haiku]: Finding auth code (<1s)

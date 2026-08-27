@@ -17,6 +17,7 @@ export type MessageKey =
   | "status.limitReached"
   | "status.allTodosComplete"
   | "status.expired"
+  | "status.awaitingFirstResponse"
   // Format
   | "format.resets"
   | "format.resetsIn"

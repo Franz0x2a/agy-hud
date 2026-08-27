@@ -20,6 +20,7 @@ export const en: Messages = {
   "status.limitReached": "Limit reached",
   "status.allTodosComplete": "All todos complete",
   "status.expired": "expired",
+  "status.awaitingFirstResponse": "awaiting first response",
 
   // Format
   "format.resets": "resets",

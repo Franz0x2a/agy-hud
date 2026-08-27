@@ -693,6 +693,26 @@ test('render respects terminal width with Chinese labels enabled', () => {
   assert.ok(lines.every(line => displayWidth(line) <= 18), 'all lines should fit terminal width with CJK labels');
 });
 
+test('Essential header wraps middle-dot segments without dropping state or project', () => {
+  const ctx = baseContext();
+  ctx.config.lineLayout = 'expanded';
+  ctx.config.elementOrder = ['project'];
+  ctx.stdin.model = { display_name: 'Gemini 3.5 Flash' };
+  ctx.stdin.cwd = '/tmp/base_src';
+  ctx.stdin.agent_state = 'idle';
+  ctx.stdin.execution_mode = 'planning';
+
+  let lines = [];
+  withTerminal(18, () => {
+    lines = captureRender(ctx);
+  });
+
+  assert.ok(lines.some(line => line.includes('AGY')), `expected brand segment: ${lines.join(' | ')}`);
+  assert.ok(lines.some(line => line.includes('READY')), `expected agent state: ${lines.join(' | ')}`);
+  assert.ok(lines.some(line => line.includes('base_src')), `expected project segment: ${lines.join(' | ')}`);
+  assert.ok(lines.every(line => displayWidth(line) <= 18), 'all header lines should fit terminal width');
+});
+
 // CJK terminals render East Asian Ambiguous chars (█ ░ │ ◐ ✓ etc.) as 2 cells.
 // Without compensating width math, lines that look short to the code overflow
 // the visible terminal and get wrapped by the terminal itself.

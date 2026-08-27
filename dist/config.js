@@ -20,6 +20,7 @@ export const DEFAULT_MERGE_GROUPS = [
 ];
 const KNOWN_ELEMENTS = new Set(DEFAULT_ELEMENT_ORDER);
 export const DEFAULT_CONFIG = {
+    configVersion: 2,
     language: 'en',
     lineLayout: 'expanded',
     showSeparators: false,
@@ -527,7 +528,19 @@ export function mergeConfig(userConfig) {
             ? migrated.colors.barEmpty
             : DEFAULT_CONFIG.colors.barEmpty,
     };
-    return { language, lineLayout, showSeparators, pathLevels, maxWidth, forceMaxWidth, elementOrder, gitStatus, display, colors };
+    return {
+        configVersion: DEFAULT_CONFIG.configVersion,
+        language,
+        lineLayout,
+        showSeparators,
+        pathLevels,
+        maxWidth,
+        forceMaxWidth,
+        elementOrder,
+        gitStatus,
+        display,
+        colors,
+    };
 }
 export async function loadConfig() {
     const configPaths = [getConfigPath(), getLegacyAliasedConfigPath()].filter((candidate) => candidate !== null);

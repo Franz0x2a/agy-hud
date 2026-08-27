@@ -205,7 +205,9 @@ function splitLineBySeparators(line: string): { segments: string[]; separators: 
 
     const separator = line.startsWith(' | ', i)
       ? ' | '
-      : (line.startsWith(' │ ', i) ? ' │ ' : null);
+      : line.startsWith(' │ ', i)
+        ? ' │ '
+        : (line.startsWith(' · ', i) ? ' · ' : null);
 
     if (separator) {
       segments.push(line.slice(currentStart, i));

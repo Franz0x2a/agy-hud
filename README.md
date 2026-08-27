@@ -6,16 +6,16 @@ agy-hud is an Antigravity-native statusline that keeps context pressure, quota
 remaining, reset time, agent state, tools, subagents, and Plan progress visible
 under your prompt—in any terminal, with no separate window.
 
-[![Version](https://img.shields.io/badge/version-0.2.0-7c3aed)](https://github.com/lllopic/agy-hud/releases)
+[![Version](https://img.shields.io/badge/version-0.2.1-7c3aed)](https://github.com/lllopic/agy-hud/releases)
 [![Antigravity CLI](https://img.shields.io/badge/Antigravity_CLI-1.0.2%E2%80%931.1.22%2B-4285f4)](https://antigravity.google/docs/cli/statusline/)
-[![Tests](https://img.shields.io/badge/tests-616_passing-22c55e)](#development)
+[![Tests](https://img.shields.io/badge/tests-619_passing-22c55e)](#development)
 [![License](https://img.shields.io/github/license/lllopic/agy-hud)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/lllopic/agy-hud)](https://github.com/lllopic/agy-hud/stargazers)
 
 > English · [简体中文](README.zh.md)
 
 ```text
-[Gemini 3.5 Pro] │ READY · planning │ agy-hud git:(main*)
+AGY · Gemini 3.5 Pro · READY · planning · agy-hud git:(main*)
 Context █░░░░░░░░░ 14.2% (84k/1.0M) │ Quota █░░░░░░░░░ Remaining 93.8% (resets in 6d 11h)
 ◐ grep_search: normalizeStatusPayload │ ✓ run_command ×2
 ▸ Render native quota (2/5)
@@ -59,6 +59,12 @@ Restart Antigravity CLI after setup. The installer writes and verifies a stable
 wrapper with resolved absolute paths, so shell variable expansion and versioned
 cache paths cannot break the HUD after an upgrade.
 
+Upgrading from a pre-v2 configuration is automatic: setup saves the original as
+`~/.gemini/antigravity-cli/plugins/agy-hud/config.v1.backup.json`, enables the
+Essential context/quota semantics, and preserves language, colors, advanced
+options, and unknown keys. Once marked v2, later reinstalls preserve your
+explicit choices.
+
 To adjust the profile, language, or layout later:
 
 ```text
@@ -76,6 +82,9 @@ Essential is intentionally high-signal. With no config file it enables:
 - context percentage and token count
 - quota remaining and reset countdown
 - tools, subagents, and Plan progress when active
+
+Before the first model response, context renders as `-- / 1.0M · awaiting first
+response` instead of claiming that the initialized session uses exactly 0%.
 
 ### Full — every current native field
 

@@ -167,7 +167,9 @@ function splitLineBySeparators(line) {
         }
         const separator = line.startsWith(' | ', i)
             ? ' | '
-            : (line.startsWith(' │ ', i) ? ' │ ' : null);
+            : line.startsWith(' │ ', i)
+                ? ' │ '
+                : (line.startsWith(' · ', i) ? ' · ' : null);
         if (separator) {
             segments.push(line.slice(currentStart, i));
             separators.push(separator);

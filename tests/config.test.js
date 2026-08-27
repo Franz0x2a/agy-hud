@@ -24,6 +24,8 @@ function restoreEnvVar(name, value) {
 test('loadConfig returns valid config structure', async () => {
   const config = await loadConfig();
 
+  assert.equal(config.configVersion, 2, 'configVersion should identify the Essential v2 schema');
+
   // pathLevels must be 1, 2, or 3
   assert.ok([1, 2, 3].includes(config.pathLevels), 'pathLevels should be 1, 2, or 3');
 

@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Native real-time HUD for Antigravity CLI — context, quota, agent state, tools, subagents, and Plan progress",
-    "version": "0.2.0"
+    "version": "0.2.1"
   },
   "plugins": [
     {

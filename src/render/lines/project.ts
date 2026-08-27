@@ -65,7 +65,8 @@ export function renderProjectLine(ctx: RenderContext): string | null {
     } else if (ctx.effortLevel) {
       modelDisplay += ` ${ctx.effortLevel}`;
     }
-    parts.push(modelColor(`[${modelDisplay}]`, colors));
+    parts.push(modelColor('AGY', colors));
+    parts.push(modelColor(modelDisplay, colors));
   }
 
   const nativeState: string[] = [];
@@ -195,7 +196,7 @@ export function renderProjectLine(ctx: RenderContext): string | null {
     return null;
   }
 
-  return parts.join(' \u2502 ');
+  return parts.join(' · ');
 }
 
 function formatAgentState(value: string): string {

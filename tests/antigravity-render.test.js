@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { DEFAULT_CONFIG } from '../dist/config.js';
 import { setLanguage } from '../dist/i18n/index.js';
-import { renderEnvironmentLine, renderProjectLine, renderUsageLine } from '../dist/render/lines/index.js';
+import { renderEnvironmentLine, renderIdentityLine, renderProjectLine, renderUsageLine } from '../dist/render/lines/index.js';
 import { renderSessionLine } from '../dist/render/session-line.js';
 import { getUsageFromStdin } from '../dist/stdin.js';
 
@@ -40,9 +40,58 @@ test('Essential status shows native agent state and execution mode', () => {
     execution_mode: 'planning',
   });
   const line = stripAnsi(renderProjectLine(ctx));
-  assert.match(line, /\[Gemini 3\.5 Pro\]/);
-  assert.match(line, /READY · planning/);
+  assert.match(line, /^AGY · Gemini 3\.5 Pro · READY · planning · /);
   assert.match(line, /agy-hud git:\(main\*\)/);
+});
+
+test('Essential context shows an awaiting state before the first model response', () => {
+  setLanguage('en');
+  const ctx = context({
+    context_window: {
+      context_window_size: 1048576,
+      used_percentage: 0,
+      remaining_percentage: 100,
+      current_usage: {
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
+    },
+  });
+  const line = stripAnsi(renderIdentityLine(ctx));
+  assert.match(line, /-- \/ 1\.0M · awaiting first response/);
+  assert.doesNotMatch(line, /0%/);
+});
+
+test('Essential context does not claim awaiting after native token activity', () => {
+  setLanguage('en');
+  const activityFrames = [
+    { current_usage: { output_tokens: 1 } },
+    { total_input_tokens: 1 },
+    { total_output_tokens: 1 },
+  ];
+
+  for (const activity of activityFrames) {
+    const ctx = context({
+      context_window: {
+        context_window_size: 1048576,
+        used_percentage: 0,
+        remaining_percentage: 100,
+        current_usage: {
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+          ...activity.current_usage,
+        },
+        ...activity,
+      },
+    });
+    const line = stripAnsi(renderIdentityLine(ctx));
+    assert.doesNotMatch(line, /awaiting first response/, JSON.stringify(activity));
+    assert.match(line, /0%/, JSON.stringify(activity));
+  }
 });
 
 test('native quota renders remaining percentage with decimal precision and reset countdown', () => {

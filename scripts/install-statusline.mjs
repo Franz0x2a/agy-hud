@@ -36,6 +36,9 @@ if (!fs.existsSync(entryPath)) {
 const configuredDir = process.env.ANTIGRAVITY_CONFIG_DIR?.trim();
 const configDir = path.resolve(expandHome(configuredDir || path.join(os.homedir(), '.gemini', 'antigravity-cli')));
 const settingsPath = path.join(configDir, 'settings.json');
+const hudConfigDir = path.join(configDir, 'plugins', 'agy-hud');
+const hudConfigPath = path.join(hudConfigDir, 'config.json');
+const legacyBackupPath = path.join(hudConfigDir, 'config.v1.backup.json');
 let settings = {};
 if (fs.existsSync(settingsPath)) {
   try {
@@ -49,6 +52,50 @@ if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
 }
 
 fs.mkdirSync(configDir, { recursive: true });
+
+let migratedLegacyConfig = false;
+if (fs.existsSync(hudConfigPath)) {
+  let hudConfig;
+  try {
+    hudConfig = JSON.parse(fs.readFileSync(hudConfigPath, 'utf8'));
+  } catch (error) {
+    fail(`Refusing to migrate invalid JSON in ${hudConfigPath}: ${error instanceof Error ? error.message : 'parse error'}`);
+  }
+  if (!hudConfig || typeof hudConfig !== 'object' || Array.isArray(hudConfig)) {
+    fail(`Refusing to migrate non-object config in ${hudConfigPath}.`);
+  }
+
+  const configVersion = typeof hudConfig.configVersion === 'number'
+    ? hudConfig.configVersion
+    : 1;
+  if (configVersion < 2) {
+    fs.mkdirSync(hudConfigDir, { recursive: true });
+    if (!fs.existsSync(legacyBackupPath)) {
+      fs.copyFileSync(hudConfigPath, legacyBackupPath, fs.constants.COPYFILE_EXCL);
+    }
+
+    const legacyDisplay = hudConfig.display && typeof hudConfig.display === 'object' && !Array.isArray(hudConfig.display)
+      ? hudConfig.display
+      : {};
+    const migratedConfig = {
+      ...hudConfig,
+      configVersion: 2,
+      display: {
+        ...legacyDisplay,
+        showAgentState: true,
+        showExecutionMode: true,
+        showUsage: true,
+        contextValue: 'both',
+        usageValue: 'remaining',
+      },
+    };
+    const configTemp = `${hudConfigPath}.${process.pid}.tmp`;
+    fs.writeFileSync(configTemp, `${JSON.stringify(migratedConfig, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+    fs.renameSync(configTemp, hudConfigPath);
+    migratedLegacyConfig = true;
+  }
+}
+
 const isWindows = process.platform === 'win32';
 const wrapperPath = path.join(configDir, isWindows ? 'agy-hud-statusline.cmd' : 'agy-hud-statusline.sh');
 if ([process.execPath, entryPath, wrapperPath].some(value => value.includes('"'))) {
@@ -97,4 +144,7 @@ fs.renameSync(settingsTemp, settingsPath);
 
 console.log(`[agy-hud] Installed statusline wrapper: ${wrapperPath}`);
 console.log(`[agy-hud] Updated settings without changing unrelated keys: ${settingsPath}`);
+if (migratedLegacyConfig) {
+  console.log(`[agy-hud] Migrated legacy config to Essential v2; backup: ${legacyBackupPath}`);
+}
 console.log('[agy-hud] Verification passed. Restart Antigravity CLI to activate the HUD.');

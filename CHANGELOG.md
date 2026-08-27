@@ -2,6 +2,20 @@
 
 All notable changes to agy-hud will be documented in this file.
 
+## [0.2.1] - 2026-08-27
+
+### Added
+- Essential v2 visual identity with a clearer `AGY · model · state · project`
+  hierarchy.
+- A localized awaiting-first-response state instead of a misleading startup
+  `Context 0%` reading.
+
+### Fixed
+- Setup now detects pre-v2 HUD configuration, writes an exact
+  `config.v1.backup.json`, and migrates context/quota semantics to Essential v2
+  without replacing language, colors, advanced options, or unknown keys.
+- Reinstalling a v2 configuration preserves explicit user choices.
+
 ## [0.2.0] - 2026-08-27
 
 ### Added

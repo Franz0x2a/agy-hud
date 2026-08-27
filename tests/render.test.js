@@ -620,7 +620,8 @@ test('renderProjectLine uses configurable element colors', () => {
   ctx.config.colors.custom = '#ff6600';
 
   const line = renderProjectLine(ctx);
-  assert.ok(line?.includes('\x1b[38;5;214m[Opus]\x1b[0m'));
+  assert.ok(line?.includes('\x1b[38;5;214mAGY\x1b[0m'));
+  assert.ok(line?.includes('\x1b[38;5;214mOpus\x1b[0m'));
   assert.ok(line?.includes('\x1b[38;5;82mmy-project\x1b[0m'));
   assert.ok(line?.includes('\x1b[38;5;220mgit:(\x1b[0m'));
   assert.ok(line?.includes('\x1b[38;2;51;255;0mmain\x1b[0m'));
@@ -871,7 +872,7 @@ test('renderProjectLine can give git its own segment for wrapping', () => {
   ctx.gitStatus = { branch: 'feature/add-auth', isDirty: false, ahead: 0, behind: 0 };
   ctx.config.gitStatus.branchOverflow = 'wrap';
   const line = stripAnsi(renderProjectLine(ctx) ?? '');
-  assert.ok(line.includes('my-project │ git:(feature/add-auth)'), 'git should render as a separate segment');
+  assert.ok(line.includes('my-project · git:(feature/add-auth)'), 'git should render as a separate segment');
 });
 
 test('renderToolsLine renders running and completed tools', () => {

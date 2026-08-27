@@ -36,6 +36,7 @@ export interface HudColorOverrides {
 export declare const DEFAULT_ELEMENT_ORDER: HudElement[];
 export declare const DEFAULT_MERGE_GROUPS: HudElement[][];
 export interface HudConfig {
+    configVersion: number;
     language: Language;
     lineLayout: LineLayoutType;
     showSeparators: boolean;

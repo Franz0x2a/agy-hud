@@ -60,7 +60,8 @@ export function renderProjectLine(ctx) {
         else if (ctx.effortLevel) {
             modelDisplay += ` ${ctx.effortLevel}`;
         }
-        parts.push(modelColor(`[${modelDisplay}]`, colors));
+        parts.push(modelColor('AGY', colors));
+        parts.push(modelColor(modelDisplay, colors));
     }
     const nativeState = [];
     if (display?.showAgentState !== false && ctx.stdin.agent_state) {
@@ -176,7 +177,7 @@ export function renderProjectLine(ctx) {
     if (parts.length === 0) {
         return null;
     }
-    return parts.join(' \u2502 ');
+    return parts.join(' · ');
 }
 function formatAgentState(value) {
     const normalized = sanitizeDisplayText(value).trim().toLowerCase();

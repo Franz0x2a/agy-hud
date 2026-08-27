@@ -34,7 +34,9 @@ export function renderIdentityLine(
     critical: display?.contextCriticalThreshold,
   };
   const contextValueMode = display?.contextValue ?? "percent";
-  const contextValue = formatContextValue(ctx, percent, contextValueMode);
+  const contextValue = isAwaitingFirstResponse(ctx)
+    ? formatAwaitingContextValue(ctx)
+    : formatContextValue(ctx, percent, contextValueMode);
   const contextValueDisplay = `${getContextColor(percent, colors, contextThresholds)}${contextValue}${RESET}`;
 
   let line =
@@ -58,6 +60,32 @@ export function renderIdentityLine(
   }
 
   return line;
+}
+
+function isAwaitingFirstResponse(ctx: RenderContext): boolean {
+  const contextWindow = ctx.stdin.context_window;
+  const usage = contextWindow?.current_usage;
+  const tokenCounters = [
+    usage?.input_tokens,
+    usage?.output_tokens,
+    usage?.cache_creation_input_tokens,
+    usage?.cache_read_input_tokens,
+    contextWindow?.total_input_tokens,
+    contextWindow?.total_output_tokens,
+  ];
+
+  return Boolean(
+    contextWindow
+    && (contextWindow.context_window_size ?? 0) > 0
+    && contextWindow.used_percentage === 0
+    && tokenCounters.every((counter) => (counter ?? 0) === 0),
+  );
+}
+
+function formatAwaitingContextValue(ctx: RenderContext): string {
+  const size = ctx.stdin.context_window?.context_window_size ?? 0;
+  const capacity = size > 0 ? ` / ${formatTokens(size)}` : '';
+  return `--${capacity} · ${t('status.awaitingFirstResponse')}`;
 }
 
 function formatTokens(n: number): string {

@@ -1,6 +1,6 @@
 {
   "name": "agy-hud",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Antigravity-native real-time HUD for context, quota, agent state, tools, subagents, and Plan progress",
   "type": "module",
   "main": "dist/index.js",

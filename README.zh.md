@@ -6,16 +6,16 @@ agy-hud 是一款 Antigravity 原生实时状态栏：上下文占用、额度�
 倒计时、Agent 状态、工具、子 Agent 与 Plan 进度，始终显示在输入框下方。
 无需 tmux，也不用额外窗口。
 
-[![版本](https://img.shields.io/badge/version-0.2.0-7c3aed)](https://github.com/lllopic/agy-hud/releases)
+[![版本](https://img.shields.io/badge/version-0.2.1-7c3aed)](https://github.com/lllopic/agy-hud/releases)
 [![Antigravity CLI](https://img.shields.io/badge/Antigravity_CLI-1.0.2%E2%80%931.1.22%2B-4285f4)](https://antigravity.google/docs/cli/statusline/)
-[![测试](https://img.shields.io/badge/tests-616_passing-22c55e)](#开发)
+[![测试](https://img.shields.io/badge/tests-619_passing-22c55e)](#开发)
 [![许可证](https://img.shields.io/github/license/lllopic/agy-hud)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/lllopic/agy-hud)](https://github.com/lllopic/agy-hud/stargazers)
 
 > [English](README.md) · 简体中文
 
 ```text
-[Gemini 3.5 Pro] │ READY · planning │ agy-hud git:(main*)
+AGY · Gemini 3.5 Pro · READY · planning · agy-hud git:(main*)
 上下文 █░░░░░░░░░ 14.2% (84k/1.0M) │ 额度 █░░░░░░░░░ 剩余 93.8% (重置剩余 6d 11h)
 ◐ grep_search: normalizeStatusPayload │ ✓ run_command ×2
 ▸ 渲染原生额度 (2/5)
@@ -54,6 +54,11 @@ agy plugin install https://github.com/lllopic/agy-hud
 完成后重启 Antigravity CLI。setup 会生成并验证使用绝对路径的稳定包装器，避免
 shell 变量展开和旧版本缓存路径让 HUD 失效。
 
+从 v2 之前的配置升级时，setup 会自动将原文件备份为
+`~/.gemini/antigravity-cli/plugins/agy-hud/config.v1.backup.json`，启用新版
+Essential 的上下文与额度语义，同时保留语言、颜色、高级选项和未知字段。配置一旦
+标记为 v2，后续重装会尊重你的显式选择。
+
 以后要切换预设、语言或布局，运行：
 
 ```text
@@ -71,6 +76,9 @@ shell 变量展开和旧版本缓存路径让 HUD 失效。
 - 上下文百分比和 token 数量
 - 额度剩余和重置倒计时
 - 活跃时显示工具、子 Agent 与 Plan 进度
+
+首次模型响应前，上下文显示为 `-- / 1.0M · 等待首次响应`，不会把刚初始化的
+会话误写成精确的 `0%`。
 
 ### Full（当前原生字段全部打开）
 

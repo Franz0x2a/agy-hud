@@ -20,6 +20,7 @@ export const zhHans: Messages = {
   "status.limitReached": "已达上限",
   "status.allTodosComplete": "全部完成",
   "status.expired": "已过期",
+  "status.awaitingFirstResponse": "等待首次响应",
 
   // Format
   "format.resets": "重置于",
