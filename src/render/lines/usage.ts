@@ -1,4 +1,4 @@
-import type { RenderContext } from "../../types.js";
+import type { QuotaWindow, RenderContext, StdinData } from "../../types.js";
 import { isLimitReached } from "../../types.js";
 import type { MessageKey } from "../../i18n/types.js";
 import { shouldHideUsage } from "../../stdin.js";
@@ -139,6 +139,158 @@ export function renderUsageLine(
   return `${usageLabel} ${fiveHourPart}`;
 }
 
+const QUOTA_PERIOD_META_TOKENS = new Set([
+  '1h', '5h', '24h', '1d', 'daily', 'weekly', '7d', 'monthly', '30d',
+  'wtu', 'quota', 'limit', 'window', 'rolling', 'short', 'long',
+  'shared', 'pool', 'base', 'baseline', 'sprint',
+]);
+
+const THIRD_PARTY_MODEL_TOKENS = new Set([
+  '3p', 'claude', 'opus', 'sonnet', 'haiku', 'anthropic',
+  'gpt', 'openai', 'o1', 'o3', 'o4', 'codex', 'deepseek', 'llama', 'qwen', 'mistral', 'grok',
+]);
+
+const THIRD_PARTY_BUCKET_TOKENS = new Set([
+  '3p', 'thirdparty', 'claude', 'anthropic', 'gpt', 'openai', 'opus', 'sonnet', 'haiku', 'codex',
+]);
+
+type ScoredQuotaWindow = {
+  window: QuotaWindow;
+  index: number;
+  score: number;
+  periodKey: string;
+  periodRank: number;
+};
+
+function tokenizeQuotaId(value: string): string[] {
+  return value.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+function detectQuotaPeriod(tokens: string[], id: string): { key: string; rank: number } {
+  const tokenSet = new Set(tokens);
+  if (tokenSet.has('1h')) return { key: '1h', rank: 1 };
+  if (tokenSet.has('5h')) return { key: '5h', rank: 2 };
+  if (tokenSet.has('daily') || tokenSet.has('24h') || tokenSet.has('1d')) return { key: 'daily', rank: 3 };
+  if (tokenSet.has('weekly') || tokenSet.has('7d')) return { key: 'weekly', rank: 4 };
+  if (tokenSet.has('monthly') || tokenSet.has('30d')) return { key: 'monthly', rank: 5 };
+  return { key: `other:${id.toLowerCase()}`, rank: 6 };
+}
+
+function scoreVariantMatch(variantTokens: string[], modelTokens: Set<string>): number {
+  if (variantTokens.length === 0) {
+    return 20;
+  }
+  let matched = 0;
+  for (const token of variantTokens) {
+    if (modelTokens.has(token)) {
+      matched += 1;
+    }
+  }
+  const unmatched = variantTokens.length - matched;
+  if (matched > 0 && unmatched === 0) {
+    return 30 + matched;
+  }
+  if (matched > 0) {
+    return 15 + matched;
+  }
+  return 10;
+}
+
+function selectQuotaWindowsForModel(
+  windows: QuotaWindow[],
+  model?: StdinData['model'],
+): QuotaWindow[] {
+  if (windows.length <= 1) {
+    return windows;
+  }
+
+  const modelText = [model?.id, model?.display_name].filter(Boolean).join(' ').toLowerCase();
+  const modelTokens = new Set(tokenizeQuotaId(modelText));
+  if (modelTokens.size === 0) {
+    return windows.slice(0, 2);
+  }
+
+  const isGeminiModel = modelTokens.has('gemini');
+  const hasAny3pBucket = windows.some((window) =>
+    tokenizeQuotaId(window.id).some((token) => token === '3p' || token === 'thirdparty'),
+  );
+  const isThirdPartyModel = !isGeminiModel && (
+    Array.from(modelTokens).some((token) => THIRD_PARTY_MODEL_TOKENS.has(token))
+    || hasAny3pBucket
+  );
+
+  const scored: ScoredQuotaWindow[] = windows.map((window, index) => {
+    const tokens = tokenizeQuotaId(window.id);
+    const tokenSet = new Set(tokens);
+    const hasGemini = tokenSet.has('gemini');
+    const hasThirdParty = tokens.some((token) => THIRD_PARTY_BUCKET_TOKENS.has(token));
+    const isGenericBucket = !hasGemini && !hasThirdParty;
+    const period = detectQuotaPeriod(tokens, window.id);
+
+    let score = 0;
+    if (isGeminiModel) {
+      if (hasThirdParty && !hasGemini) {
+        score = -1;
+      } else if (hasGemini) {
+        const variantTokens = tokens.filter(
+          (token) => token !== 'gemini' && !QUOTA_PERIOD_META_TOKENS.has(token),
+        );
+        score = scoreVariantMatch(variantTokens, modelTokens);
+      } else if (isGenericBucket) {
+        score = 5;
+      }
+    } else if (isThirdPartyModel) {
+      if (hasGemini && !hasThirdParty) {
+        score = -1;
+      } else if (hasThirdParty) {
+        const variantTokens = tokens.filter(
+          (token) => token !== '3p' && token !== 'thirdparty' && !QUOTA_PERIOD_META_TOKENS.has(token),
+        );
+        score = scoreVariantMatch(variantTokens, modelTokens);
+      } else if (isGenericBucket) {
+        score = 5;
+      }
+    } else {
+      score = 5;
+    }
+
+    return {
+      window,
+      index,
+      score,
+      periodKey: period.key,
+      periodRank: period.rank,
+    };
+  });
+
+  const primary = scored.filter((entry) => entry.score >= 20);
+  const sameFamily = scored.filter((entry) => entry.score >= 10);
+  const positive = scored.filter((entry) => entry.score > 0);
+  const pool = primary.length > 0
+    ? primary
+    : sameFamily.length > 0
+      ? sameFamily
+      : positive;
+
+  if (pool.length === 0) {
+    return windows.slice(0, 2);
+  }
+
+  const byPeriod = new Map<string, ScoredQuotaWindow>();
+  for (const entry of pool) {
+    const existing = byPeriod.get(entry.periodKey);
+    if (!existing || entry.score > existing.score) {
+      byPeriod.set(entry.periodKey, entry);
+    }
+  }
+
+  return Array.from(byPeriod.values())
+    .sort((a, b) => (b.score - a.score) || (a.periodRank - b.periodRank) || (a.index - b.index))
+    .slice(0, 2)
+    .sort((a, b) => (a.periodRank - b.periodRank) || (a.index - b.index))
+    .map((entry) => entry.window);
+}
+
 function renderNativeQuota(ctx: RenderContext, alignLabels: boolean): string | null {
   const windows = ctx.usageData?.quotaWindows;
   if (!windows?.length) return null;
@@ -148,8 +300,9 @@ function renderNativeQuota(ctx: RenderContext, alignLabels: boolean): string | n
   const showResetLabel = display?.showResetLabel ?? true;
   const quotaLabel = progressLabel('label.quota', colors, alignLabels);
   const barWidth = getAdaptiveBarWidth();
+  const selectedWindows = selectQuotaWindowsForModel(windows, ctx.stdin.model);
 
-  const rendered = windows.slice(0, 2).map((window) => {
+  const rendered = selectedWindows.map((window) => {
     const remaining = Math.min(100, Math.max(0, window.remainingPercent));
     const used = 100 - remaining;
     const reset = formatResetTime(window.resetAt, timeFormat);

@@ -352,6 +352,11 @@ function formatTokens(n: number): string {
   return n.toString();
 }
 
+function formatContextPercent(value: number): string {
+  const clamped = Math.min(100, Math.max(0, value));
+  return clamped.toFixed(2).replace(/\.00$/, '');
+}
+
 function formatContextValue(ctx: RenderContext, percent: number, mode: 'percent' | 'tokens' | 'remaining' | 'both'): string {
   const totalTokens = getTotalTokens(ctx.stdin);
   const size = ctx.stdin.context_window?.context_window_size ?? 0;
@@ -364,17 +369,18 @@ function formatContextValue(ctx: RenderContext, percent: number, mode: 'percent'
   }
 
   if (mode === 'both') {
+    const formattedPercent = formatContextPercent(percent);
     if (size > 0) {
-      return `${percent}% (${formatTokens(totalTokens)}/${formatTokens(size)})`;
+      return `${formattedPercent}% (${formatTokens(totalTokens)}/${formatTokens(size)})`;
     }
-    return `${percent}%`;
+    return `${formattedPercent}%`;
   }
 
   if (mode === 'remaining') {
-    return `${Math.max(0, 100 - percent)}%`;
+    return `${formatContextPercent(100 - percent)}%`;
   }
 
-  return `${percent}%`;
+  return `${formatContextPercent(percent)}%`;
 }
 
 function formatCompactWindowPart(

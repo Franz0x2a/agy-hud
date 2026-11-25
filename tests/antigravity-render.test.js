@@ -176,3 +176,92 @@ test('compact layout labels native non-git VCS correctly', () => {
   assert.match(line, /jj:\(main\*\)/);
   assert.doesNotMatch(line, /git:\(main\*\)/);
 });
+
+test('formats high-precision native context percentages to two decimal places', () => {
+  setLanguage('en');
+  const stdin = {
+    cwd: '/workspace/agy-hud',
+    model: { display_name: 'Gemini 4 Neon (XHigh)' },
+    context_window: {
+      context_window_size: 1048576,
+      used_percentage: 1.82952880859375,
+      remaining_percentage: 98.17047119140625,
+      current_usage: {
+        input_tokens: 2302,
+        output_tokens: 339,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 11678,
+      },
+    },
+  };
+
+  assert.match(stripAnsi(renderIdentityLine(context(stdin, { contextValue: 'both' }))), /1\.83% \(14k\/1\.0M\)/);
+  assert.match(stripAnsi(renderIdentityLine(context(stdin, { contextValue: 'remaining' }))), /98\.17%/);
+  assert.match(stripAnsi(renderSessionLine(context(stdin, { contextValue: 'both' }))), /1\.83% \(14k\/1\.0M\)/);
+  assert.match(stripAnsi(renderSessionLine(context(stdin, { contextValue: 'remaining' }))), /98\.17%/);
+});
+
+test('native quota auto-matches buckets to the active model family and variant', () => {
+  setLanguage('en');
+  const sharedQuota = {
+    '3p-5h': { remaining_fraction: 1 },
+    '3p-weekly': { remaining_fraction: 1 },
+    'gemini-weekly': { remaining_fraction: 0.91 },
+    'gemini-5h': { remaining_fraction: 0.82 },
+    'gemini-argon-wtu-weekly': { remaining_fraction: 0.64 },
+  };
+
+  const neonLine = stripAnsi(renderUsageLine(context({
+    model: { display_name: 'Gemini 4 Neon (XHigh)' },
+    quota: sharedQuota,
+  })));
+  assert.match(neonLine, /gemini 5h .* Remaining 82% \| gemini weekly .* Remaining 91%/);
+  assert.doesNotMatch(neonLine, /3p|argon/);
+
+  const argonLine = stripAnsi(renderUsageLine(context({
+    model: { display_name: 'Gemini 4 Argon (Medium)' },
+    quota: sharedQuota,
+  })));
+  assert.match(argonLine, /gemini 5h .* Remaining 82% \| gemini argon wtu weekly .* Remaining 64%/);
+  assert.doesNotMatch(argonLine, /3p/);
+
+  const claudeLine = stripAnsi(renderUsageLine(context({
+    model: { display_name: 'Claude Opus 4.6' },
+    quota: sharedQuota,
+  })));
+  assert.match(claudeLine, /3p 5h .* Remaining 100% \| 3p weekly .* Remaining 100%/);
+  assert.doesNotMatch(claudeLine, /gemini/);
+
+  const singleGeminiLine = stripAnsi(renderUsageLine(context({
+    model: { display_name: 'Gemini 4 Neon (XHigh)' },
+    quota: {
+      '3p-5h': { remaining_fraction: 1 },
+      '3p-weekly': { remaining_fraction: 1 },
+      'gemini-weekly': { remaining_fraction: 0.77 },
+    },
+  })));
+  assert.match(singleGeminiLine, /gemini weekly .* Remaining 77%/);
+  assert.doesNotMatch(singleGeminiLine, /3p/);
+
+  const proFlashLine = stripAnsi(renderUsageLine(context({
+    model: { id: 'gemini-3.5-pro-high', display_name: 'Gemini 3.5 Pro (High)' },
+    quota: {
+      '3p-5h': { remaining_fraction: 1 },
+      'gemini-flash-5h': { remaining_fraction: 0.95 },
+      'gemini-flash-weekly': { remaining_fraction: 0.99 },
+      'gemini-pro-5h': { remaining_fraction: 0.7 },
+      'gemini-pro-weekly': { remaining_fraction: 0.8 },
+    },
+  })));
+  assert.match(proFlashLine, /gemini pro 5h .* Remaining 70% \| gemini pro weekly .* Remaining 80%/);
+  assert.doesNotMatch(proFlashLine, /flash|3p/);
+
+  const fallbackLine = stripAnsi(renderUsageLine(context({
+    model: { display_name: 'Gemini 4 Neon (XHigh)' },
+    quota: {
+      '3p-5h': { remaining_fraction: 1 },
+      '3p-weekly': { remaining_fraction: 1 },
+    },
+  })));
+  assert.match(fallbackLine, /3p 5h .* Remaining 100% \| 3p weekly .* Remaining 100%/);
+});

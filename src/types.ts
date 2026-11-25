@@ -43,6 +43,7 @@ export interface StdinData {
     remaining_fraction?: number | null;
     reset_time?: string | null;
     reset_in_seconds?: number | null;
+    disabled?: boolean;
   }> | null;
   agent_state?: string;
   vcs?: {

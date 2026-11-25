@@ -74,6 +74,7 @@ test('rejects non-object payloads and invalid quota windows without throwing', (
     quota: {
       broken: { remaining_fraction: Number.NaN },
       oversized: { remaining_fraction: 5 },
+      inactive: { remaining_fraction: 0.5, disabled: true },
     },
   });
 

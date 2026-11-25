@@ -76,6 +76,8 @@ function normalizeQuota(value) {
         const safeId = sanitizeString(id);
         if (!safeId || safeId.length > 128 || !isRecord(rawWindow))
             continue;
+        if (rawWindow.disabled === true)
+            continue;
         const remainingFraction = finiteNumber(rawWindow.remaining_fraction);
         if (remainingFraction === undefined || remainingFraction < 0 || remainingFraction > 1)
             continue;
@@ -187,6 +189,8 @@ export function getQuotaWindows(stdin) {
         return [];
     const windows = [];
     for (const [id, window] of Object.entries(stdin.quota).slice(0, MAX_QUOTA_WINDOWS)) {
+        if (window.disabled === true)
+            continue;
         const fraction = window.remaining_fraction;
         if (typeof fraction !== 'number' || !Number.isFinite(fraction) || fraction < 0 || fraction > 1)
             continue;
